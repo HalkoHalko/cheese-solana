@@ -11,9 +11,8 @@ create an api key + webhook
 update .env file with the variables
 
 HELIUS_API_KEY=
+
 HELIUS_WEBHOOK_ID=
-SERVER_HOST=
-SERVER_PORT=
 
 ## Usage
 
