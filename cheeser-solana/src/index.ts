@@ -6,8 +6,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-const host = process.env.RAILWAY_STATIC_URL || process.env.SERVER_HOST || '0.0.0.0';
-const port = process.env.PORT ? parseInt(process.env.PORT) : process.env.SERVER_PORT ? parseInt(process.env.SERVER_PORT) : 3000;
+const host = '0.0.0.0';
+const port = process.env.PORT ? parseInt(process.env.PORT) : 8080;
 
 app.use(bodyParser.json());
 
