@@ -22,6 +22,20 @@ class HeliusService {
             throw error;
         }
     }
+
+    async getParsedTransactionHistory(account: string, limit: number = 10) {
+        try {
+            const response = await axios.get(`${this.baseUrl}/addresses/${account}/transactions?api-key=${this.apiKey}&limit=${limit}`, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching parsed transaction history:', error);
+            throw error;
+        }
+    }
 }
 
 export default HeliusService;

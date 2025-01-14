@@ -27,6 +27,14 @@ class WebhookController {
             console.error('Error fetching webhook details:', error);
         }
 
+        try {
+            const account = webhookData.account; // Assuming the account is part of the webhook data
+            const transactionHistory = await this.heliusService.getParsedTransactionHistory(account);
+            console.log('Parsed transaction history:', transactionHistory);
+        } catch (error) {
+            console.error('Error fetching parsed transaction history:', error);
+        }
+
         this.webhookService.processTransaction(webhookData);
         res.status(200).send('Webhook received');
     }
