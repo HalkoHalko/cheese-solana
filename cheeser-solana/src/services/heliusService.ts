@@ -43,6 +43,20 @@ class HeliusService {
             throw error;
         }
     }
+
+    async getBlockDetails(blockNumber: number) {
+        try {
+            const response = await axios.get(`${this.baseUrl}/blocks/${blockNumber}?api-key=${this.apiKey}`, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching block details:', error);
+            throw error;
+        }
+    }
 }
 
 export default HeliusService;
