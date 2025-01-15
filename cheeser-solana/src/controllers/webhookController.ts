@@ -41,13 +41,14 @@ class WebhookController {
 
     public async queryTransactionHistory(req: Request, res: Response) {
         const account = req.query.account as string;
-        const before = req.query.before ? parseInt(req.query.before as string) : undefined;
+        const before = req.query.before as string;
+        const until = req.query.until as string;
         if (!account) {
             return res.status(400).send('Account parameter is required');
         }
 
         try {
-            const transactionHistory = await this.heliusService.getParsedTransactionHistory(account, 10, before);
+            const transactionHistory = await this.heliusService.getParsedTransactionHistory(account, 10, before, until);
             console.log('Parsed transaction history:', transactionHistory);
             res.status(200).json(transactionHistory);
         } catch (error) {
