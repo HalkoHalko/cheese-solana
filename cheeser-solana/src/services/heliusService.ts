@@ -46,12 +46,18 @@ class HeliusService {
 
     async getBlockDetails(blockNumber: number) {
         try {
-            const response = await axios.get(`${this.baseUrl}/blocks/${blockNumber}?api-key=${this.apiKey}`, {
+            const response = await axios.post(`${this.baseUrl}/rpc`, {
+                jsonrpc: "2.0",
+                id: 1, // Hard-coded ID for simplicity
+                method: "getBlock",
+                params: [blockNumber, { "transactionDetails": "signatures" }]
+            }, {
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'api-key': this.apiKey
                 }
             });
-            return response.data;
+            return response.data.result;
         } catch (error) {
             console.error('Error fetching block details:', error);
             throw error;

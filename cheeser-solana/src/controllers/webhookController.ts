@@ -65,12 +65,11 @@ class WebhookController {
 
         try {
             const blockDetails = await this.heliusService.getBlockDetails(blockNumber);
-            const firstSignature = blockDetails.transactions[0]?.transaction.signatures[0];
-            console.log('First signature from block:', firstSignature);
-            res.status(200).json({ firstSignature });
+            console.log('Block details:', blockDetails);
+            res.status(200).json(blockDetails);
         } catch (error) {
-            console.error('Error fetching first signature from block:', error);
-            res.status(500).send('Error fetching first signature from block');
+            console.error('Error fetching block details:', error);
+            res.status(500).send('Error fetching block details');
         }
     }
 }
