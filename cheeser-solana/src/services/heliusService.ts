@@ -46,16 +46,16 @@ class HeliusService {
 
     async getBlockDetails(blockNumber: number) {
         try {
-            const response = await axios.post(`${this.baseUrl}/rpc`, {
+            const response = await axios.post(`https://mainnet.helius-rpc.com/?api-key=${this.apiKey}`, {
                 jsonrpc: "2.0",
                 id: 1, // Hard-coded ID for simplicity
                 method: "getBlock",
                 params: [blockNumber, { "transactionDetails": "signatures" }]
             }, {
                 headers: {
-                    'Content-Type': 'application/json',
-                    'api-key': this.apiKey
-                }
+                    'Content-Type': 'application/json'
+                },
+                maxBodyLength: Infinity // Ensure the request can handle large responses
             });
             return response.data.result;
         } catch (error) {
