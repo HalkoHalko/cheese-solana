@@ -57,7 +57,7 @@ class WebhookController {
         }
     }
 
-    public async getFirstSignatureFromBlock(req: Request, res: Response) {
+    public async getBlockData(req: Request, res: Response) {
         const blockNumber = parseInt(req.query.blockNumber as string);
         if (isNaN(blockNumber)) {
             return res.status(400).send('Block number parameter is required and must be a number');
@@ -70,6 +70,23 @@ class WebhookController {
         } catch (error) {
             console.error('Error fetching block details:', error);
             res.status(500).send('Error fetching block details');
+        }
+    }
+
+    public async getFirstSignatureFromBlock(req: Request, res: Response) {
+        const blockNumber = parseInt(req.query.blockNumber as string);
+        if (isNaN(blockNumber)) {
+            return res.status(400).send('Block number parameter is required and must be a number');
+        }
+
+        try {
+            const blockDetails = await this.heliusService.getBlockDetails(blockNumber);
+            const firstSignature = blockDetails.signatures[0];
+            console.log('First signature from block:', firstSignature);
+            res.status(200).json({ firstSignature });
+        } catch (error) {
+            console.error('Error fetching first signature from block:', error);
+            res.status(500).send('Error fetching first signature from block');
         }
     }
 }
