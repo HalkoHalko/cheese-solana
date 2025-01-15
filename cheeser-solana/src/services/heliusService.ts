@@ -23,9 +23,13 @@ class HeliusService {
         }
     }
 
-    async getParsedTransactionHistory(account: string, limit: number = 10) {
+    async getParsedTransactionHistory(account: string, limit: number = 10, before?: number) {
         try {
-            const response = await axios.get(`${this.baseUrl}/addresses/${account}/transactions?api-key=${this.apiKey}&limit=${limit}`, {
+            let url = `${this.baseUrl}/addresses/${account}/transactions?api-key=${this.apiKey}&limit=${limit}`;
+            if (before) {
+                url += `&before=${before}`;
+            }
+            const response = await axios.get(url, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
