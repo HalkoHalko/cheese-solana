@@ -3,6 +3,8 @@
 # Solana Cheeser
 
 Now you can listen to the cheese events on Solana.
+Or any events, or any transaction history, or block data!
+Now you can dig deeper into Solana using this below
 
 ## Setup
 
@@ -32,30 +34,48 @@ npm install
 
 3. **Run the Application**
 ```
-npm install
+npm start
 ```
 
-Routes
-/webhook: Listens to the events from your configured webhook.
-/query-transaction-history: Queries the transaction history for a given account.
-Arguments:
-account: The account to query.
-before: (Optional) Signature to start searching backwards from.
-until: (Optional) Signature to search until.
-/get-block-data: Gets the block data for the given block.
-Argument:
-blockNumber: The block number to query.
-/get-first-signature-from-block: Returns the first signature from the given block.
-Argument:
-blockNumber: The block number to query.
+## Routes
 
-Example Usage
-Query Transaction History
+- **`/webhook`**: Listens to the events from your configured webhook.
+- **`/query-transaction-history`**: Queries the transaction history for a given account.
+  - **Arguments**:
+    - `account`: The account to query.
+    - `before`: (Optional) Signature to start searching backwards from.
+    - `until`: (Optional) Signature to search until.
+- **`/get-block-data`**: Gets the block data for the given block.
+  - **Argument**:
+    - `blockNumber`: The block number to query.
+- **`/get-first-signature-from-block`**: Returns the first signature from the given block.
+  - **Argument**:
+    - `blockNumber`: The block number to query.
 
-curl -X GET "http://localhost:3000/query-transaction-history?account=<account>&before=<signature>&until=<signature>"
+## Example Usage
 
-Get Block Data
-curl -X GET "http://localhost:3000/get-block-data?blockNumber=<blockNumber>"
+### Query Transaction History
 
-Get First Signature from Block
-curl -X GET "http://localhost:3000/get-first-signature-from-block?blockNumber=<blockNumber>"
+```sh
+curl -X GET "http://localhost:8080/query-transaction-history?account=<account>&before=<signature>&until=<signature>"
+```
+
+### Get Block Data
+
+```sh
+curl -X GET "http://localhost:8080/get-block-data?blockNumber=<blockNumber>"
+```
+
+### Get First Signature from a Block
+
+```sh
+curl -X GET "http://localhost:8080/get-first-signature-from-block?blockNumber=<blockNumber>"
+```
+## Contributing
+
+Feel free to open issues or submit pull requests for any improvements or bug fixes, it's a retarded project.
+
+## License
+
+MIT license
+
