@@ -36,6 +36,11 @@ npm install
 ```
 npm start
 ```
+## One-Click Deployment to Railway
+
+You can deploy this project to Railway with one click:
+Fill in the required environment variables in the Railway's architecture section (HELIUS_API_KEY and HELIUS_WEBHOOK_ID).
+Click "Deploy".
 
 ## Routes
 
