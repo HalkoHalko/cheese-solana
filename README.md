@@ -1,53 +1,61 @@
 ![image](https://github.com/user-attachments/assets/5670bb6c-409a-479d-aea3-955a6b5ad1c2)
 
+# Solana Cheeser
 
-## Solana Cheeser
+Now you can listen to the cheese events on Solana.
 
-Now you can listen to the cheese events on Solana
+## Setup
 
-## Setup 
+1. **Create an API Key and Webhook:**
+   - Visit [Helius Dashboard](https://dashboard.helius.dev/).
+   - Create an API key and configure a webhook.
 
-https://dashboard.helius.dev/
+2. **Update `.env` File:**
+   - Add the following variables to your `.env` file:
+     ```properties
+     HELIUS_API_KEY=<your-api-key>
+     HELIUS_WEBHOOK_ID=<your-webhook-id>
+     ```
 
-create an api key + webhook
+## Installation
 
-update .env file with the variables
+1. **Clone the Repository:**
+   ```sh
+   git clone https://github.com/HalkoHalko/cheese-solana.git
+   cd cheese-solana
+   ```
 
-HELIUS_API_KEY=
-
-HELIUS_WEBHOOK_ID=
-
-## Routes
-
-'/webhook' - listens to the events from your configured wbehook
-'/query-transaction-history', - queries the tx history for a given account. Arguments are: account, before and until. Note that before and until are signatures.  
-'/get-block-data' - gets the block data for the given block. Argument = blockNumber
-'/get-first-signature-from-block' - returns the first signature from the given block
-
-examples:
-https://XYZ/query-transaction-history?account=ABCD <- will query the history of a Solana address ABCD
-
-https://XYZ/query-transaction-history?account=ABCD&before=EFGH <- will query the history of a Solana address ABCD from before the signature EFGH
-
-https://XYZ/get-block-data?blockNumber=12345 <- will query the data of the block 12345
-
-https://XYZ//get-first-signature-from-block??blockNumber=12345 <- will only show the first signature for the block 12345
-
-
-## One click deployment on Railway
-
-Yes you can do that -> deploy the repo on Railway
-
-Update HELIUS_API_KEY= and HELIUS_WEBHOOK_ID= in Railway as variables
-
-Go to Settings -> Networking -> Public Networking -> get the public addy -> go to Helius Dashboard -> Update your Webhook with the generated URL
-
-
-## Usage
-
-To start the server, run:
+2. **Install Dependencies**
 ```
-npm start
+npm install
 ```
 
-The server will listen for incoming webhook requests 
+3. **Run the Application**
+```
+npm install
+```
+
+Routes
+/webhook: Listens to the events from your configured webhook.
+/query-transaction-history: Queries the transaction history for a given account.
+Arguments:
+account: The account to query.
+before: (Optional) Signature to start searching backwards from.
+until: (Optional) Signature to search until.
+/get-block-data: Gets the block data for the given block.
+Argument:
+blockNumber: The block number to query.
+/get-first-signature-from-block: Returns the first signature from the given block.
+Argument:
+blockNumber: The block number to query.
+
+Example Usage
+Query Transaction History
+
+curl -X GET "http://localhost:3000/query-transaction-history?account=<account>&before=<signature>&until=<signature>"
+
+Get Block Data
+curl -X GET "http://localhost:3000/get-block-data?blockNumber=<blockNumber>"
+
+Get First Signature from Block
+curl -X GET "http://localhost:3000/get-first-signature-from-block?blockNumber=<blockNumber>"
