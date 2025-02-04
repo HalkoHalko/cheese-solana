@@ -1,8 +1,12 @@
-localhost {
+localhost:8443 {
     root * .
-    file_server
+    file_server browse
     encode gzip
     tls internal
+    log {
+        output stdout
+        format console
+    }
     header {
         Access-Control-Allow-Origin *
         Access-Control-Allow-Methods "GET, POST, OPTIONS"
@@ -11,5 +15,11 @@ localhost {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "no-referrer-when-downgrade"
+        Cache-Control "no-cache"
+        # Required for service workers
+        Service-Worker-Allowed "/"
+    }
+    handle_errors {
+        respond "{err.status_code} {err.status_text}"
     }
 } 
