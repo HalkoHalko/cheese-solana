@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cheese Coin Visualizer</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        width: 100vw;
+        height: 100vh;
+        background: #000;
+      }
+      #renderCanvas {
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+      #priceDisplay {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.7);
+        color: #ffd700;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 18px;
+        border: 1px solid #ffd700;
+        text-shadow: 0 0 10px #ffd700;
+        z-index: 100;
+      }
+      #transactionInfo {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        padding: 15px;
+        border-radius: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        max-width: 300px;
+        border: 1px solid #ffd700;
+        z-index: 100;
+      }
+      .transaction {
+        margin-bottom: 10px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 5px;
+      }
+      #walletButton {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #ffd700;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 16px;
+        border: 1px solid #ffd700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        z-index: 100;
+      }
+      #walletButton:hover {
+        background: rgba(255, 215, 0, 0.2);
+      }
+      #walletInfo {
+        position: fixed;
+        top: 70px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        padding: 15px;
+        border-radius: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        max-width: 300px;
+        border: 1px solid #ffd700;
+        display: none;
+        z-index: 100;
+      }
+      .wallet-balance {
+        color: #ffd700;
+        font-weight: bold;
+        margin-top: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="renderCanvas"></canvas>
+    <div id="priceDisplay"></div>
+    <div id="transactionInfo"></div>
+    <button id="walletButton">Connect Wallet</button>
+    <div id="walletInfo">
+      <div>Wallet Address: <span id="walletAddress"></span></div>
+      <div class="wallet-balance">🧀 Balance: <span id="cheeseBalance">0</span></div>
+      <div class="wallet-balance">SOL Balance: <span id="solBalance">0</span></div>
+    </div>
+
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+    <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
+    <script src="https://cdn.babylonjs.com/postProcessesLibrary/babylonjs.postProcess.min.js"></script>
+
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@solana/wallet-adapter-base@latest/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@solana/wallet-adapter-phantom@latest/lib/index.iife.min.js"></script>
+
+    <script>
+      const tokens = [
+        { 
+          symbol: '🧀', 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump/logo.png',
+          address: 'A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump'
+        },
+        { 
+          symbol: 'SOL', 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+          address: 'So11111111111111111111111111111111111111112'
+        },
+        { 
+          symbol: 'USDC', 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+          address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+        },
+        { 
+          symbol: 'BONK', 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/logo.png',
+          address: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'
+        }
+      ];
+
+      // Meteora pool configurations
+      const meteoraPools = [
+        { pair: '🧀-SOL', tvl: 150.0, weight: 0.4 },
+        { pair: '🧀-USDC', tvl: 180.0, weight: 0.3 },
+        { pair: '🧀-BONK', tvl: 120.0, weight: 0.3 }
+      ];
+
+      const canvas = document.getElementById("renderCanvas");
+      const engine = new BABYLON.Engine(canvas, true);
+      const priceDisplay = document.getElementById("priceDisplay");
+      const transactionInfo = document.getElementById("transactionInfo");
+
+      // Declare shared variables at the top level
+      let scene = null;
+      let potsGroup = null;
+      let metalMaterial = null;
+      let cheeseMaterial = null;
+
+      // Add logging utility
+      const log = {
+        info: (message, data) => {
+          console.log(`🧀 [INFO] ${message}`, data || '');
+        },
+        warn: (message, error) => {
+          console.warn(`🧀 [WARN] ${message}`, error || '');
+        },
+        error: (message, error) => {
+          console.error(`🧀 [ERROR] ${message}`, error || '');
+        },
+        debug: (message, data) => {
+          console.debug(`🧀 [DEBUG] ${message}`, data || '');
+        }
+      };
+
+      // Add wallet connection logic
+      let wallet = null;
+      let connection = null;
+      const CHEESE_TOKEN_ADDRESS = 'A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump';
+
+      // Function to create a fondue pot (moved to global scope)
+      const createFonduePot = (pool) => {
+        log.debug('Creating pot for pool:', pool);
+        const potGroup = new BABYLON.TransformNode("potGroup");
+        potGroup.parent = potsGroup;
+
+        // Scale based on TVL and adjust color based on price
+        const scaleFactor = BABYLON.Scalar.Clamp(pool.tvl / 50000, 0.5, 3);
+        const priceColor = new BABYLON.Color3(
+          1.0, // Red component
+          0.84 * (pool.price > 1 ? 1 : pool.price), // Green component affected by price
+          0 // Blue component
+        );
+
+        // Create pot body with source indicator
+        const body = BABYLON.MeshBuilder.CreateCylinder("body", {
+          height: scaleFactor * 1.5,
+          diameterTop: scaleFactor * 2,
+          diameterBottom: scaleFactor * 1.6,
+          tessellation: 32
+        });
+        const bodyMaterial = metalMaterial.clone("potMetal");
+        // Different glow colors for different sources
+        bodyMaterial.emissiveColor = pool.source === 'Meteora' ? 
+          new BABYLON.Color3(0.5, 0, 0.5) : // Purple for Meteora
+          pool.source === 'Raydium' ?
+          new BABYLON.Color3(0, 0.5, 0.5) : // Cyan for Raydium
+          new BABYLON.Color3(0.2, 0.2, 0.2); // Grey for Mock
+        body.material = bodyMaterial;
+        body.parent = potGroup;
+
+        // Add source label
+        const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+        const label = new BABYLON.GUI.TextBlock();
+        label.text = `${pool.pair}\n[${pool.source}]`;
+        label.color = pool.source === 'Meteora' ? "#ff00ff" : 
+                     pool.source === 'Raydium' ? "#00ffff" : "#ffffff";
+        label.fontSize = 14;
+        label.fontFamily = "Arial";
+        label.backgroundColor = "#000000AA";
+        advancedTexture.addControl(label);
+        label.linkWithMesh(body);
+        label.linkOffsetY = -50;
+
+        // Create cheese liquid
+        const cheese = BABYLON.MeshBuilder.CreateCylinder("cheese", {
+          height: scaleFactor * 1.2,
+          diameter: scaleFactor * 1.8,
+          tessellation: 32
+        });
+        cheese.position.y = -0.1;
+        cheese.material = cheeseMaterial.clone("potCheese");
+        cheese.parent = potGroup;
+
+        // Add handles
+        for (let i = 0; i < 2; i++) {
+          const handle = BABYLON.MeshBuilder.CreateTorus("handle", {
+            diameter: scaleFactor * 0.6,
+            thickness: scaleFactor * 0.1,
+            tessellation: 16
+          });
+          handle.rotation.z = Math.PI / 2;
+          handle.position.x = (i === 0 ? 1 : -1) * scaleFactor;
+          handle.position.y = scaleFactor * 0.4;
+          handle.material = metalMaterial.clone("handleMetal");
+          handle.parent = potGroup;
+        }
+
+        // Create bubbling effect
+        const bubbleSystem = new BABYLON.ParticleSystem("bubbles", 100, scene);
+        bubbleSystem.particleTexture = new BABYLON.Texture(
+          "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/circle.png", scene);
+        bubbleSystem.emitter = cheese;
+        bubbleSystem.minEmitBox = new BABYLON.Vector3(-scaleFactor * 0.8, 0, -scaleFactor * 0.8);
+        bubbleSystem.maxEmitBox = new BABYLON.Vector3(scaleFactor * 0.8, 0, scaleFactor * 0.8);
+        bubbleSystem.color1 = new BABYLON.Color4(1, 0.8, 0, 0.8);
+        bubbleSystem.color2 = new BABYLON.Color4(1, 0.5, 0, 0.8);
+        bubbleSystem.minSize = 0.1;
+        bubbleSystem.maxSize = 0.3;
+        bubbleSystem.minLifeTime = 0.5;
+        bubbleSystem.maxLifeTime = 1.5;
+        bubbleSystem.emitRate = 50;
+        bubbleSystem.gravity = new BABYLON.Vector3(0, 1, 0);
+        bubbleSystem.start();
+
+        return potGroup;
+      };
+
+      // Function to arrange pots (moved to global scope)
+      const arrangePots = (pools) => {
+        if (!potsGroup || !scene) {
+          log.error('Cannot arrange pots - scene or potsGroup not initialized');
+          return;
+        }
+
+        log.info('Arranging pots for pools:', {
+          poolCount: pools.length,
+          sources: pools.reduce((acc, p) => {
+            acc[p.source] = (acc[p.source] || 0) + 1;
+            return acc;
+          }, {}),
+          totalTVL: pools.reduce((sum, p) => sum + p.tvl, 0).toFixed(2)
+        });
+
+        // Clear existing pots
+        const existingPots = potsGroup.getChildren().length;
+        log.debug(`Clearing ${existingPots} existing pots`);
+        potsGroup.getChildren().forEach(child => child.dispose());
+
+        pools.forEach((pool, i) => {
+          try {
+            const angle = i * 0.4;
+            const radius = 35 + i * 0.3;
+            const pot = createFonduePot(pool);
+            pot.position = new BABYLON.Vector3(
+              radius * Math.cos(angle),
+              0,
+              radius * Math.sin(angle)
+            );
+            pot.rotation.y = Math.random() * Math.PI * 2;
+            log.debug(`Created pot ${i}:`, {
+              pair: pool.pair,
+              tvl: pool.tvl,
+              source: pool.source,
+              position: pot.position
+            });
+          } catch (error) {
+            log.error(`Failed to create pot ${i}:`, error);
+          }
+        });
+
+        log.info('Finished arranging pots:', {
+          created: potsGroup.getChildren().length,
+          expected: pools.length
+        });
+      };
+
+      // Enhanced pool initialization with better logging
+      async function initializePools() {
+        log.info('Initializing pools...');
+        try {
+          if (connection) {
+            log.debug('Fetching pools from DEXes...');
+            const startTime = performance.now();
+
+            // Fetch both Meteora and Raydium pools in parallel
+            const [meteoraResponse, raydiumResponse] = await Promise.all([
+              fetch('https://api.meteora.ag/v1/pools'),
+              fetch('https://api.raydium.io/v2/main/pairs')
+            ]);
+
+            const meteoraData = await meteoraResponse.json();
+            const raydiumData = await raydiumResponse.json();
+            
+            log.debug('Raw pool data fetched:', {
+              meteoraTotal: meteoraData.pools?.length || 0,
+              raydiumTotal: raydiumData?.length || 0
+            });
+
+            // Process Meteora pools
+            const meteoraPools = meteoraData.pools
+              .filter(pool => 
+                pool.tokens.some(token => 
+                  token.mint === CHEESE_TOKEN_ADDRESS
+                )
+              )
+              .map(pool => {
+                const cheeseToken = pool.tokens.find(token => 
+                  token.mint === CHEESE_TOKEN_ADDRESS
+                );
+                return {
+                  id: pool.address,
+                  tvl: parseFloat(pool.tvl),
+                  price: parseFloat(cheeseToken.price),
+                  weight: parseFloat(pool.volume24h) / 1000000,
+                  pair: `🧀-${pool.name.replace('CHEESE-', '')}`,
+                  source: 'Meteora'
+                };
+              });
+
+            // Process Raydium pools
+            const raydiumPools = raydiumData
+              .filter(pool => 
+                pool.baseMint === CHEESE_TOKEN_ADDRESS || 
+                pool.quoteMint === CHEESE_TOKEN_ADDRESS
+              )
+              .map(pool => {
+                const isBaseToken = pool.baseMint === CHEESE_TOKEN_ADDRESS;
+                const otherTokenAddress = isBaseToken ? pool.quoteMint : pool.baseMint;
+                const otherTokenInfo = tokens.find(t => t.address === otherTokenAddress);
+                const otherTokenSymbol = otherTokenInfo ? otherTokenInfo.symbol : 'Unknown';
+                
+                return {
+                  id: pool.ammId,
+                  tvl: parseFloat(pool.liquidity),
+                  price: isBaseToken ? parseFloat(pool.price) : 1 / parseFloat(pool.price),
+                  weight: parseFloat(pool.volume24h) / 1000000,
+                  pair: `🧀-${otherTokenSymbol}`,
+                  source: 'Raydium'
+                };
+              });
+
+            // Combine and sort pools by TVL
+            const allPools = [...meteoraPools, ...raydiumPools]
+              .sort((a, b) => b.tvl - a.tvl);
+
+            const endTime = performance.now();
+            log.info('Pool initialization complete:', {
+              meteoraPools: meteoraPools.length,
+              raydiumPools: raydiumPools.length,
+              totalPools: allPools.length,
+              totalTVL: allPools.reduce((sum, p) => sum + p.tvl, 0).toFixed(2),
+              timeMs: (endTime - startTime).toFixed(2)
+            });
+
+            return allPools;
+          }
+        } catch (error) {
+          log.error('Failed to fetch real pool data:', error);
+        }
+
+        // Fallback to mock data
+        log.warn('Using mock pool data');
+        return meteoraPools.map((pool, i) => ({
+          id: i,
+          tvl: pool.tvl,
+          price: 9.0,
+          weight: pool.weight,
+          pair: pool.pair,
+          source: 'Mock'
+        }));
+      }
+
+      const createScene = async function() {
+        log.info('Creating scene...');
+        // Create the scene
+        scene = new BABYLON.Scene(engine);
+        scene.clearColor = new BABYLON.Color4(0.05, 0.1, 0.2, 1.0);
+
+        // Camera setup
+        const camera = new BABYLON.ArcRotateCamera("camera", 0, Math.PI / 3, 120, 
+          BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
+        camera.lowerRadiusLimit = 50;
+        camera.upperRadiusLimit = 200;
+        camera.wheelDeltaPercentage = 0.01;
+        camera.fov = 0.8; // Narrower field of view for more cinematic look
+        camera.inertia = 0.7; // Smoother camera movement
+
+        // Enhanced Lighting
+        const hemisphericLight = new BABYLON.HemisphericLight("hemispheric", 
+          new BABYLON.Vector3(0, 1, 0), scene);
+        hemisphericLight.intensity = 0.3;
+        hemisphericLight.groundColor = new BABYLON.Color3(0.1, 0.1, 0.3); // Bluish ground reflection
+
+        const spotLight = new BABYLON.SpotLight("spot", new BABYLON.Vector3(50, 50, 0),
+          new BABYLON.Vector3(-1, -1, 0), Math.PI / 3, 2, scene);
+        spotLight.intensity = 0.8;
+        spotLight.diffuse = new BABYLON.Color3(1, 0.95, 0.8); // Warm light color
+        spotLight.specular = new BABYLON.Color3(1, 0.9, 0.5);
+
+        // Add point lights for ambiance
+        const createPointLight = (name, position, color) => {
+            const light = new BABYLON.PointLight(name, position, scene);
+            light.intensity = 0.4;
+            light.diffuse = color;
+            light.specular = color;
+            light.radius = 50;
+            return light;
+        };
+
+        createPointLight("warmLight1", new BABYLON.Vector3(30, 20, 30), new BABYLON.Color3(1, 0.5, 0.2));
+        createPointLight("coolLight1", new BABYLON.Vector3(-30, 20, -30), new BABYLON.Color3(0.2, 0.3, 1));
+
+        // Environment
+        let envTexture;
+        try {
+          envTexture = new BABYLON.CubeTexture(
+            "https://assets.babylonjs.com/environments/environmentSpecular.env", scene);
+          scene.environmentTexture = envTexture;
+          scene.createDefaultSkybox(envTexture, true, 1000);
+        } catch (error) {
+          console.warn("Failed to load environment texture:", error);
+          // Set a default background color instead
+          scene.clearColor = new BABYLON.Color4(0.1, 0.2, 0.3, 1.0);
+        }
+
+        // Initialize materials that will be needed globally
+        metalMaterial = new BABYLON.PBRMaterial("metal", scene);
+        metalMaterial.metallic = 0.9;
+        metalMaterial.roughness = 0.15;
+        metalMaterial.albedoColor = new BABYLON.Color3(0.8, 0.8, 0.8);
+        metalMaterial.environmentIntensity = 0.7;
+        metalMaterial.clearCoat.isEnabled = true;
+        metalMaterial.clearCoat.intensity = 0.5;
+        metalMaterial.clearCoat.roughness = 0.2;
+
+        cheeseMaterial = new BABYLON.PBRMaterial("cheese", scene);
+        cheeseMaterial.metallic = 0.1;
+        cheeseMaterial.roughness = 0.3;
+        cheeseMaterial.albedoColor = new BABYLON.Color3(1.0, 0.84, 0);
+        cheeseMaterial.emissiveColor = new BABYLON.Color3(0.4, 0.3, 0);
+        cheeseMaterial.subSurface.isTranslucencyEnabled = true;
+        cheeseMaterial.subSurface.translucencyIntensity = 0.8;
+        cheeseMaterial.subSurface.tintColor = new BABYLON.Color3(1.0, 0.9, 0.5);
+        cheeseMaterial.clearCoat.isEnabled = true;
+        cheeseMaterial.clearCoat.intensity = 0.3;
+        cheeseMaterial.clearCoat.roughness = 0.1;
+
+        // Enhanced Ground
+        const ground = BABYLON.MeshBuilder.CreateGround("ground", 
+          {width: 500, height: 500, subdivisions: 100}, scene);
+        const snowMaterial = new BABYLON.PBRMaterial("snow", scene);
+        snowMaterial.metallic = 0;
+        snowMaterial.roughness = 0.95;
+        snowMaterial.albedoColor = new BABYLON.Color3(0.95, 0.95, 1);
+        snowMaterial.subSurface.isTranslucencyEnabled = true;
+        snowMaterial.subSurface.translucencyIntensity = 0.3;
+        snowMaterial.subSurface.tintColor = new BABYLON.Color3(0.8, 0.8, 1);
+        
+        // Add subtle displacement to ground
+        const noiseTexture = new BABYLON.NoiseProceduralTexture("perlin", 256, scene);
+        noiseTexture.animationSpeedFactor = 0.1;
+        noiseTexture.persistence = 0.2;
+        noiseTexture.brightness = 0.5;
+        noiseTexture.octaves = 3;
+
+        snowMaterial.bumpTexture = noiseTexture;
+        snowMaterial.bumpTexture.level = 0.2;
+        ground.material = snowMaterial;
+
+        // Enhanced Snow Particles
+        const snowSystem = new BABYLON.ParticleSystem("snow", 8000, scene);
+        snowSystem.particleTexture = new BABYLON.Texture(
+          "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/snowflake2.png", scene);
+        snowSystem.emitter = new BABYLON.Vector3(0, 100, 0);
+        snowSystem.minEmitBox = new BABYLON.Vector3(-250, 0, -250);
+        snowSystem.maxEmitBox = new BABYLON.Vector3(250, 0, 250);
+        snowSystem.color1 = new BABYLON.Color4(1, 1, 1, 0.9);
+        snowSystem.color2 = new BABYLON.Color4(0.9, 0.9, 1, 0.8);
+        snowSystem.colorDead = new BABYLON.Color4(0.9, 0.9, 1, 0.0);
+        snowSystem.minSize = 0.1;
+        snowSystem.maxSize = 0.5;
+        snowSystem.minLifeTime = 5;
+        snowSystem.maxLifeTime = 8;
+        snowSystem.emitRate = 1000;
+        snowSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
+        snowSystem.gravity = new BABYLON.Vector3(0, -9.81, 0);
+        snowSystem.direction1 = new BABYLON.Vector3(-1, -1, -1);
+        snowSystem.direction2 = new BABYLON.Vector3(1, -1, 1);
+        snowSystem.minAngularSpeed = -0.5;
+        snowSystem.maxAngularSpeed = 0.5;
+        snowSystem.start();
+
+        // Add fog for depth
+        scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+        scene.fogColor = new BABYLON.Color3(0.9, 0.9, 0.95);
+        scene.fogDensity = 0.001;
+
+        // Create fondue pots group
+        potsGroup = new BABYLON.TransformNode("potsGroup");
+
+        // Create central price display
+        const createPriceDisplay = () => {
+            // Create a manager for the GUI elements
+            const guiManager = new BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+
+            // Create a stack panel for vertical arrangement
+            const stackPanel = new BABYLON.GUI.StackPanel();
+            stackPanel.isVertical = true;
+            stackPanel.paddingTop = "10px";
+            guiManager.addControl(stackPanel);
+
+            // Create glowing circle background first (so it's behind text)
+            const circle = new BABYLON.GUI.Ellipse();
+            circle.width = "400px";
+            circle.height = "400px";
+            circle.color = "#FFD700";
+            circle.thickness = 2;
+            circle.background = "rgba(0, 0, 0, 0.8)"; // More opaque background
+            circle.alpha = 0.9; // More visible
+            guiManager.addControl(circle);
+
+            // Add outer glow circle
+            const outerCircle = new BABYLON.GUI.Ellipse();
+            outerCircle.width = "420px";
+            outerCircle.height = "420px";
+            outerCircle.color = "#FFD700";
+            outerCircle.thickness = 1;
+            outerCircle.background = "transparent";
+            outerCircle.alpha = 0.5; // Stronger glow
+            guiManager.addControl(outerCircle);
+
+            // Create text block for "CHEESE"
+            const titleText = new BABYLON.GUI.TextBlock();
+            titleText.text = "🧀 CHEESE 🧀";
+            titleText.color = "#FFD700";
+            titleText.fontSize = 48; // Larger font
+            titleText.fontFamily = "Arial";
+            titleText.shadowBlur = 15; // More blur for better glow
+            titleText.shadowColor = "#FFD700";
+            titleText.shadowOffsetX = 0;
+            titleText.shadowOffsetY = 0;
+            titleText.height = "80px";
+            stackPanel.addControl(titleText);
+
+            // Add contract address
+            const addressText = new BABYLON.GUI.TextBlock();
+            addressText.text = "A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump";
+            addressText.color = "#CCCCCC"; // Lighter color for better visibility
+            addressText.fontSize = 16; // Slightly larger
+            addressText.fontFamily = "monospace";
+            addressText.height = "40px";
+            stackPanel.addControl(addressText);
+
+            // Create text block for price
+            const priceText = new BABYLON.GUI.TextBlock();
+            priceText.text = "$0.00";
+            priceText.color = "#FFFFFF";
+            priceText.fontSize = 72; // Larger price
+            priceText.fontFamily = "Arial";
+            priceText.shadowBlur = 20; // More blur for better glow
+            priceText.shadowColor = "#FFD700";
+            priceText.shadowOffsetX = 0;
+            priceText.shadowOffsetY = 0;
+            priceText.height = "120px";
+            stackPanel.addControl(priceText);
+
+            // Add price change indicator
+            const changeIndicator = new BABYLON.GUI.TextBlock();
+            changeIndicator.text = "";
+            changeIndicator.color = "#00FF00";
+            changeIndicator.fontSize = 32; // Larger indicator
+            changeIndicator.fontFamily = "Arial";
+            changeIndicator.height = "50px";
+            stackPanel.addControl(changeIndicator);
+
+            // Add click handler to copy address
+            addressText.isPointerBlocker = true;
+            addressText.onPointerUpObservable.add(() => {
+                navigator.clipboard.writeText(addressText.text).then(() => {
+                    const originalColor = addressText.color;
+                    addressText.color = "#00FF00";
+                    setTimeout(() => {
+                        addressText.color = originalColor;
+                    }, 500);
+                });
+            });
+
+            // Add hover effect for address
+            addressText.onPointerEnterObservable.add(() => {
+                addressText.color = "#FFFFFF";
+            });
+            addressText.onPointerOutObservable.add(() => {
+                addressText.color = "#CCCCCC";
+            });
+
+            let currentPrice = 9.00; // Starting price
+            let time = 0;
+            scene.onBeforeRenderObservable.add(() => {
+                time += 0.02;
+                // Pulse main circle
+                circle.scaleX = 1 + Math.sin(time) * 0.05;
+                circle.scaleY = 1 + Math.sin(time) * 0.05;
+                // Pulse outer circle opposite to main circle
+                outerCircle.scaleX = 1 + Math.sin(time + Math.PI) * 0.08;
+                outerCircle.scaleY = 1 + Math.sin(time + Math.PI) * 0.08;
+                // Pulse title opacity
+                titleText.alpha = 0.8 + Math.sin(time) * 0.2;
+                
+                // Update price with smooth transitions
+                if (Math.random() < 0.01) { // 1% chance each frame
+                    const newPrice = (Math.random() * 2 + 8).toFixed(2); // Random price between $8-$10
+                    const priceChange = (newPrice - currentPrice).toFixed(2);
+                    const isPositive = priceChange > 0;
+                    
+                    // Update price display
+                    priceText.text = `$${newPrice}`;
+                    currentPrice = parseFloat(newPrice);
+
+                    // Show and animate price change indicator
+                    changeIndicator.text = `${isPositive ? '▲' : '▼'} ${Math.abs(priceChange)}`;
+                    changeIndicator.color = isPositive ? "#00FF00" : "#FF0000";
+                    
+                    // Flash effect on price change
+                    circle.alpha = 1;
+                    setTimeout(() => {
+                        circle.alpha = 0.9;
+                    }, 200);
+                }
+            });
+
+            return { titleText, priceText, circle, outerCircle, changeIndicator };
+        };
+
+        const priceDisplay = createPriceDisplay();
+
+        // Function to create a fondue pot
+        const createFonduePot = (pool) => {
+          const potGroup = new BABYLON.TransformNode("potGroup");
+          potGroup.parent = potsGroup;
+
+          // Scale based on TVL and adjust color based on price
+          const scaleFactor = BABYLON.Scalar.Clamp(pool.tvl / 50000, 0.5, 3);
+          const priceColor = new BABYLON.Color3(
+            1.0, // Red component
+            0.84 * (pool.price > 1 ? 1 : pool.price), // Green component affected by price
+            0 // Blue component
+          );
+
+          // Create pot body with source indicator
+          const body = BABYLON.MeshBuilder.CreateCylinder("body", {
+            height: scaleFactor * 1.5,
+            diameterTop: scaleFactor * 2,
+            diameterBottom: scaleFactor * 1.6,
+            tessellation: 32
+          });
+          const bodyMaterial = metalMaterial.clone("potMetal");
+          // Different glow colors for different sources
+          bodyMaterial.emissiveColor = pool.source === 'Meteora' ? 
+            new BABYLON.Color3(0.5, 0, 0.5) : // Purple for Meteora
+            pool.source === 'Raydium' ?
+            new BABYLON.Color3(0, 0.5, 0.5) : // Cyan for Raydium
+            new BABYLON.Color3(0.2, 0.2, 0.2); // Grey for Mock
+          body.material = bodyMaterial;
+          body.parent = potGroup;
+
+          // Add source label
+          const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+          const label = new BABYLON.GUI.TextBlock();
+          label.text = `${pool.pair}\n[${pool.source}]`;
+          label.color = pool.source === 'Meteora' ? "#ff00ff" : 
+                       pool.source === 'Raydium' ? "#00ffff" : "#ffffff";
+          label.fontSize = 14;
+          label.fontFamily = "Arial";
+          label.backgroundColor = "#000000AA";
+          advancedTexture.addControl(label);
+          label.linkWithMesh(body);
+          label.linkOffsetY = -50;
+
+          // Create cheese liquid
+          const cheese = BABYLON.MeshBuilder.CreateCylinder("cheese", {
+            height: scaleFactor * 1.2,
+            diameter: scaleFactor * 1.8,
+            tessellation: 32
+          });
+          cheese.position.y = -0.1;
+          cheese.material = cheeseMaterial.clone("potCheese");
+          cheese.parent = potGroup;
+
+          // Add handles
+          for (let i = 0; i < 2; i++) {
+            const handle = BABYLON.MeshBuilder.CreateTorus("handle", {
+              diameter: scaleFactor * 0.6,
+              thickness: scaleFactor * 0.1,
+              tessellation: 16
+            });
+            handle.rotation.z = Math.PI / 2;
+            handle.position.x = (i === 0 ? 1 : -1) * scaleFactor;
+            handle.position.y = scaleFactor * 0.4;
+            handle.material = metalMaterial.clone("handleMetal");
+            handle.parent = potGroup;
+          }
+
+          // Create bubbling effect
+          const bubbleSystem = new BABYLON.ParticleSystem("bubbles", 100, scene);
+          bubbleSystem.particleTexture = new BABYLON.Texture(
+            "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/circle.png", scene);
+          bubbleSystem.emitter = cheese;
+          bubbleSystem.minEmitBox = new BABYLON.Vector3(-scaleFactor * 0.8, 0, -scaleFactor * 0.8);
+          bubbleSystem.maxEmitBox = new BABYLON.Vector3(scaleFactor * 0.8, 0, scaleFactor * 0.8);
+          bubbleSystem.color1 = new BABYLON.Color4(1, 0.8, 0, 0.8);
+          bubbleSystem.color2 = new BABYLON.Color4(1, 0.5, 0, 0.8);
+          bubbleSystem.minSize = 0.1;
+          bubbleSystem.maxSize = 0.3;
+          bubbleSystem.minLifeTime = 0.5;
+          bubbleSystem.maxLifeTime = 1.5;
+          bubbleSystem.emitRate = 50;
+          bubbleSystem.gravity = new BABYLON.Vector3(0, 1, 0);
+          bubbleSystem.start();
+
+          return potGroup;
+        };
+
+        // Function to arrange pots
+        const arrangePots = (pools) => {
+          // Clear existing pots
+          potsGroup.getChildren().forEach(child => child.dispose());
+
+          pools.forEach((pool, i) => {
+            const angle = i * 0.4;
+            const radius = 35 + i * 0.3;
+            const pot = createFonduePot(pool);
+            pot.position = new BABYLON.Vector3(
+              radius * Math.cos(angle),
+              0,
+              radius * Math.sin(angle)
+            );
+            pot.rotation.y = Math.random() * Math.PI * 2;
+          });
+        };
+
+        // Mock data generation with Meteora pools
+        const generateMockTransaction = () => {
+          const poolIndex = Math.floor(Math.random() * meteoraPools.length);
+          const pool = meteoraPools[poolIndex];
+          const [token1Symbol, token2Symbol] = pool.pair.split('-');
+          const token1 = tokens.find(t => t.symbol === token1Symbol);
+          const token2 = tokens.find(t => t.symbol === token2Symbol);
+          const types = ['swap', 'addLiquidity', 'removeLiquidity'];
+          const type = types[Math.floor(Math.random() * types.length)];
+
+          return {
+            type,
+            token1,
+            token2,
+            amount: (Math.random() * 1000 * pool.weight).toFixed(2),
+            poolIndex
+          };
+        };
+
+        // Initialize with pools
+        const initialPools = await initializePools();
+        arrangePots(initialPools);
+
+        // Add random transactions with a check for potsGroup
+        scene.onBeforeRenderObservable.add(() => {
+          if (Math.random() < 0.02 && potsGroup && potsGroup.getChildren().length > 0) {
+            const transaction = generateMockTransaction();
+            visualizeTransaction(transaction);
+          }
+        });
+
+        // Enhanced Post-processing
+        const pipeline = new BABYLON.DefaultRenderingPipeline(
+          "defaultPipeline", true, scene, [camera]);
+        
+        // Bloom
+        pipeline.bloomEnabled = true;
+        pipeline.bloomThreshold = 0.6;
+        pipeline.bloomWeight = 0.5;
+        pipeline.bloomKernel = 64;
+        pipeline.bloomScale = 0.5;
+
+        // SSAO for depth
+        pipeline.ssaoEnabled = true;
+        pipeline.ssaoRatio = 0.5;
+        pipeline.ssaoBlurScale = 1;
+        pipeline.ssaoArea = 1;
+        pipeline.ssaoBaseColor = new BABYLON.Color3(0.0, 0.0, 0.0);
+
+        // Color grading
+        pipeline.imageProcessing.colorGradingEnabled = true;
+        pipeline.imageProcessing.colorGradingWithGreenDepth = false;
+        pipeline.imageProcessing.contrast = 1.1;
+        pipeline.imageProcessing.exposure = 1.0;
+        pipeline.imageProcessing.toneMappingEnabled = true;
+
+        // Chromatic aberration
+        pipeline.chromaticAberrationEnabled = true;
+        pipeline.chromaticAberration.aberrationAmount = 1;
+        pipeline.chromaticAberration.radialIntensity = 0.5;
+
+        // Grain
+        pipeline.grainEnabled = true;
+        pipeline.grain.intensity = 5;
+        pipeline.grain.animated = true;
+
+        // Sharpen
+        pipeline.sharpenEnabled = true;
+        pipeline.sharpen.edgeAmount = 0.3;
+        pipeline.sharpen.colorAmount = 1;
+
+        return scene;
+      };
+
+      // Transaction visualization function with null checks
+      const visualizeTransaction = (transaction) => {
+        if (!transaction || !potsGroup) return;
+
+        // Update transaction info display
+        const txDiv = document.createElement('div');
+        txDiv.className = 'transaction';
+        txDiv.innerHTML = `
+            <span style="color: ${transaction.source === 'Meteora' ? '#ff00ff' : '#00ffff'}">
+                [${transaction.source || 'DEX'}]
+            </span><br>
+            ${transaction.type.toUpperCase()}<br>
+            ${transaction.token1.symbol} ⟷ ${transaction.token2.symbol}<br>
+            Amount: ${transaction.amount}
+        `;
+        transactionInfo.insertBefore(txDiv, transactionInfo.firstChild);
+        if (transactionInfo.children.length > 5) {
+            transactionInfo.removeChild(transactionInfo.lastChild);
+        }
+
+        // Create particle effect for transaction
+        const children = potsGroup.getChildren();
+        if (!children || children.length === 0) return;
+        
+        const pot = children[transaction.poolIndex % children.length];
+        if (pot) {
+            const particleSystem = new BABYLON.ParticleSystem("txEffect", 100, scene);
+            particleSystem.particleTexture = new BABYLON.Texture(
+                "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/circle.png", scene);
+            particleSystem.emitter = pot;
+            particleSystem.color1 = transaction.type === 'addLiquidity' ? 
+                new BABYLON.Color4(0, 1, 0, 1) : new BABYLON.Color4(1, 0, 0, 1);
+            particleSystem.color2 = transaction.type === 'addLiquidity' ?
+                new BABYLON.Color4(0, 0.5, 0, 1) : new BABYLON.Color4(0.5, 0, 0, 1);
+            particleSystem.minSize = 0.1;
+            particleSystem.maxSize = 0.3;
+            particleSystem.minLifeTime = 0.5;
+            particleSystem.maxLifeTime = 1.0;
+            particleSystem.emitRate = 100;
+            particleSystem.gravity = new BABYLON.Vector3(0, 5, 0);
+            particleSystem.start();
+
+            setTimeout(() => {
+                particleSystem.stop();
+                setTimeout(() => particleSystem.dispose(), 2000);
+            }, 1000);
+
+            if (transaction.type !== 'swap') {
+                const scale = transaction.type === 'addLiquidity' ? 1.1 : 0.9;
+                pot.scaling.scaleInPlace(scale);
+            }
+        }
+    };
+
+      // Initialize everything with proper error handling
+      window.addEventListener('DOMContentLoaded', async () => {
+        try {
+          const newScene = await createScene();
+          if (!newScene || !potsGroup) {
+            throw new Error('Failed to initialize scene or pots group');
+          }
+          
+          // Start the render loop
+          engine.runRenderLoop(() => {
+            if (newScene) {
+              newScene.render();
+            }
+          });
+
+          // Start periodic updates
+          setInterval(async () => {
+            try {
+              const updatedPools = await initializePools();
+              if (updatedPools && updatedPools.length > 0) {
+                arrangePots(updatedPools);
+              }
+            } catch (error) {
+              console.warn('Error updating pools:', error);
+            }
+          }, 60000); // Update every minute
+
+        } catch (error) {
+          console.error('Error initializing scene:', error);
+        }
+      });
+
+      // Handle window resizing
+      window.addEventListener("resize", () => {
+        if (engine) {
+          engine.resize();
+        }
+      });
+
+      // Add wallet connection logic
+      async function connectWallet() {
+        try {
+          if (!window.solana || !window.solana.isPhantom) {
+            alert('Please install Phantom wallet!');
+            window.open('https://phantom.app/', '_blank');
+            return;
+          }
+
+          const resp = await window.solana.connect();
+          wallet = resp.publicKey;
+          connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('mainnet-beta'));
+          
+          // Update UI
+          document.getElementById('walletButton').textContent = 'Disconnect';
+          document.getElementById('walletAddress').textContent = 
+            `${wallet.toString().slice(0, 4)}...${wallet.toString().slice(-4)}`;
+          document.getElementById('walletInfo').style.display = 'block';
+
+          // Start balance updates
+          updateBalances();
+          setInterval(updateBalances, 10000); // Update every 10 seconds
+
+        } catch (err) {
+          console.error('Error connecting wallet:', err);
+          alert('Failed to connect wallet: ' + err.message);
+        }
+      }
+
+      async function disconnectWallet() {
+        if (window.solana) {
+          await window.solana.disconnect();
+          wallet = null;
+          connection = null;
+          
+          // Update UI
+          document.getElementById('walletButton').textContent = 'Connect Wallet';
+          document.getElementById('walletInfo').style.display = 'none';
+          document.getElementById('cheeseBalance').textContent = '0';
+          document.getElementById('solBalance').textContent = '0';
+        }
+      }
+
+      async function updateBalances() {
+        if (!wallet || !connection) return;
+
+        try {
+          // Get SOL balance
+          const solBalance = await connection.getBalance(wallet);
+          document.getElementById('solBalance').textContent = 
+            (solBalance / solanaWeb3.LAMPORTS_PER_SOL).toFixed(4);
+
+          // Get Cheese token balance
+          const tokenAccounts = await connection.getParsedTokenAccountsByOwner(wallet, {
+            programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+          });
+
+          const cheeseAccount = tokenAccounts.value.find(account => 
+            account.account.data.parsed.info.mint === CHEESE_TOKEN_ADDRESS
+          );
+
+          if (cheeseAccount) {
+            const cheeseBalance = cheeseAccount.account.data.parsed.info.tokenAmount.uiAmount;
+            document.getElementById('cheeseBalance').textContent = cheeseBalance.toFixed(4);
+          }
+
+        } catch (err) {
+          console.error('Error updating balances:', err);
+        }
+      }
+
+      // Add click handler for wallet button
+      document.getElementById('walletButton').addEventListener('click', async () => {
+        if (!wallet) {
+          await connectWallet();
+        } else {
+          await disconnectWallet();
+        }
+      });
+    </script>
+  </body>
+</html>
