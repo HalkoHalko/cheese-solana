@@ -2,9 +2,36 @@
 
 # Solana Cheeser
 
-Now you can listen to the cheese events on Solana.
-Or any events, or any transaction history, or block data!
-Now you can dig deeper into Solana using this below
+Now you can listen to the cheese events on Solana and see them visualized in a beautiful 3D environment.
+Watch liquidity pools come alive as fondue pots in a cozy Buffalo winter setting!
+
+## Features
+
+### 3D Visualization
+- Real-time visualization of Solana liquidity pools as fondue pots
+- Dynamic transaction effects with particle systems and token logos
+- Cozy Buffalo winter atmosphere with falling snow and warm lighting
+- Interactive display showing recent transactions and TVL
+
+### Transaction Visualization
+- Live transaction animations with token pair logos
+- Green particles for liquidity additions
+- Red particles for liquidity removals
+- Dynamic pot sizing based on TVL (Total Value Locked)
+- Transaction history display in top-right corner
+
+### Environment
+- Rustic wooden table with red tablecloth
+- Buffalo-style appetizers (wings, celery, carrots)
+- Realistic snow effects and atmospheric fog
+- Warm indoor lighting contrasting with cool winter atmosphere
+
+### Technical Features
+- Real-time data updates from Solana blockchain
+- Fallback to simulated data when offline
+- Responsive design that adapts to window size
+- High-performance rendering with Three.js
+- Post-processing effects for enhanced visuals
 
 ## Setup
 
@@ -19,28 +46,18 @@ Now you can dig deeper into Solana using this below
      HELIUS_WEBHOOK_ID=<your-webhook-id>
      ```
 
-## Installation
-
-1. **Clone the Repository:**
+3. **Installation:**
    ```sh
    git clone https://github.com/HalkoHalko/cheese-solana.git
    cd cheese-solana
+   npm install
    ```
 
-2. **Install Dependencies**
-```
-npm install
-```
-
-3. **Run the Application**
-```
-npm start
-```
-## One-Click Deployment to Railway
-
-You can deploy this project to Railway with one click:
-Fill in the required environment variables in the Railway's architecture section (HELIUS_API_KEY and HELIUS_WEBHOOK_ID).
-Click "Deploy".
+4. **Run the Application:**
+   ```sh
+   npm start
+   ```
+   Then open `cheese.html` in your browser to see the visualization.
 
 ## Routes
 
@@ -57,28 +74,15 @@ Click "Deploy".
   - **Argument**:
     - `blockNumber`: The block number to query.
 
-## Example Usage
+## Visualization Controls
+- The scene automatically rotates to show all pools
+- Camera smoothly orbits the scene
+- Transaction effects are visible for a few seconds
+- Pot sizes update in real-time with liquidity changes
 
-### Query Transaction History
-
-```sh
-curl -X GET "http://localhost:8080/query-transaction-history?account=<account>&before=<signature>&until=<signature>"
-```
-
-### Get Block Data
-
-```sh
-curl -X GET "http://localhost:8080/get-block-data?blockNumber=<blockNumber>"
-```
-
-### Get First Signature from a Block
-
-```sh
-curl -X GET "http://localhost:8080/get-first-signature-from-block?blockNumber=<blockNumber>"
-```
 ## Contributing
 
-Feel free to open issues or submit pull requests for any improvements or bug fixes, it's a retarded project.
+Feel free to open issues or submit pull requests for any improvements or bug fixes.
 
 ## License
 
