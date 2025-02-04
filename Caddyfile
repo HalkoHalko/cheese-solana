@@ -3,23 +3,69 @@ localhost:8443 {
     file_server browse
     encode gzip
     tls internal
+
+    # Proper MIME type handling
+    @javascript {
+        path *.js
+    }
+    header @javascript Content-Type "application/javascript"
+
     log {
         output stdout
         format console
     }
+
+    # CORS and security headers
     header {
-        Access-Control-Allow-Origin *
-        Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        # CORS headers
+        Access-Control-Allow-Origin "*"
+        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
         Access-Control-Allow-Headers "*"
+        Access-Control-Allow-Credentials "true"
+        Access-Control-Max-Age "3600"
+        
+        # Security headers with specific CSP
+        Content-Security-Policy "
+            default-src 'self';
+            script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdn.babylonjs.com;
+            style-src 'self' 'unsafe-inline';
+            img-src 'self' data: blob:;
+            connect-src 'self' https://api.mainnet-beta.solana.com https://amm-v2.meteora.ag https://api.raydium.io wss://api.mainnet-beta.solana.com;
+            font-src 'self' data:;
+            object-src 'none';
+            frame-src 'self';
+            worker-src 'self' blob:;
+            base-uri 'self';
+            form-action 'self';
+            frame-ancestors 'none';
+            upgrade-insecure-requests;
+        "
+        
+        # Other security headers
         Strict-Transport-Security "max-age=31536000;"
         X-Content-Type-Options "nosniff"
-        X-Frame-Options "DENY"
+        X-Frame-Options "SAMEORIGIN"
         Referrer-Policy "no-referrer-when-downgrade"
-        Cache-Control "no-cache"
-        # Required for service workers
-        Service-Worker-Allowed "/"
+        
+        # Cache control
+        Cache-Control "no-store"
     }
+
+    # Handle CORS preflight requests
+    @options {
+        method OPTIONS
+    }
+    handle @options {
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "*"
+        header Access-Control-Max-Age "3600"
+        respond "" 204
+    }
+
+    # Handle errors with proper content type
     handle_errors {
-        respond "{err.status_code} {err.status_text}"
+        header Content-Type "application/json"
+        respond `{"error": "{err.status_code} {err.status_text}"}`
     }
 } 

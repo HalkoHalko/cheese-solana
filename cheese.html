@@ -257,22 +257,124 @@
       <div id="errorMessage" class="error-message"></div>
     </div>
 
+    <!-- Load dependencies in correct order -->
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@solana/wallet-adapter-base@latest/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@solana/wallet-adapter-phantom@latest/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@raydium-io/raydium-sdk@1.3.1-beta.0/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@meteora/dynamic-amm-sdk@0.2.0/dist/index.js"></script>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
-    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
-    <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
-    <script src="https://cdn.babylonjs.com/postProcessesLibrary/babylonjs.postProcess.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <!-- Local SDK files -->
-    <script src="libs/web3.iife.min.js"></script>
-    <script src="libs/wallet-adapter-base.iife.min.js"></script>
-    <script src="libs/wallet-adapter-phantom.iife.min.js"></script>
-    <script src="libs/raydium-sdk.iife.min.js"></script>
-    <script src="libs/meteora-sdk.js"></script>
-
     <script>
+      // Add error handling for pool initialization
+      async function initializePools() {
+        try {
+          console.info('Initializing pools with Raydium SDK...');
+          const pools = await window.raydiumSdk.initializePools();
+          console.info('Arranging pots for pools:', { poolCount: pools?.length, sources: pools?.sources, totalTvl: pools?.totalTvl });
+          return pools;
+        } catch (error) {
+          console.error('Failed to initialize pools:', error);
+          return null;
+        }
+      }
+
+      // Add error handling for price chart updates
+      async function updatePriceChart(priceData) {
+        try {
+          if (!priceData || !Array.isArray(priceData)) {
+            console.warn('Invalid price data for chart update');
+            return;
+          }
+
+          const ctx = document.getElementById('priceChart').getContext('2d');
+          if (!ctx) {
+            console.error('Could not get price chart context');
+            return;
+          }
+
+          // Create or update chart
+          if (!window.priceChart) {
+            window.priceChart = new Chart(ctx, {
+              type: 'line',
+              data: {
+                labels: priceData.map(d => new Date(d.timestamp).toLocaleTimeString()),
+                datasets: [{
+                  label: 'CHEESE Price (USD)',
+                  data: priceData.map(d => d.price),
+                  borderColor: '#ffd700',
+                  tension: 0.4
+                }]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                  y: {
+                    beginAtZero: false,
+                    grid: {
+                      color: 'rgba(255, 215, 0, 0.1)'
+                    },
+                    ticks: {
+                      color: '#ffd700'
+                    }
+                  },
+                  x: {
+                    grid: {
+                      color: 'rgba(255, 215, 0, 0.1)'
+                    },
+                    ticks: {
+                      color: '#ffd700'
+                    }
+                  }
+                },
+                plugins: {
+                  legend: {
+                    labels: {
+                      color: '#ffd700'
+                    }
+                  }
+                }
+              }
+            });
+          } else {
+            window.priceChart.data.labels = priceData.map(d => new Date(d.timestamp).toLocaleTimeString());
+            window.priceChart.data.datasets[0].data = priceData.map(d => d.price);
+            window.priceChart.update();
+          }
+        } catch (error) {
+          console.error('Error updating price chart:', error);
+        }
+      }
+
+      // Handle Talisman extension error gracefully
+      window.addEventListener('load', async () => {
+        try {
+          // Initialize Solana connection
+          const connection = new solanaWeb3.Connection('https://api.mainnet-beta.solana.com');
+          
+          // Initialize wallet adapter
+          const walletAdapter = window.solana;
+          
+          if (!walletAdapter) {
+            console.warn('No wallet adapter found - some features may be limited');
+          }
+
+          // Initialize pools
+          const pools = await initializePools();
+          if (!pools) {
+            console.warn('Failed to initialize pools - trading features may be limited');
+          }
+
+          // Start price updates
+          startPriceUpdates();
+        } catch (error) {
+          console.error('Error during initialization:', error);
+        }
+      });
+
       // Initialize SDKs
       let raydiumSDK = null;
       let meteoraSDK = null;
