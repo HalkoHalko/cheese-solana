@@ -153,17 +153,175 @@
       // Declare shared variables at the top level
       let scene = null;
       let potsGroup = null;
+      let metalMaterial = null;
+      let cheeseMaterial = null;
+
+      // Add logging utility
+      const log = {
+        info: (message, data) => {
+          console.log(`🧀 [INFO] ${message}`, data || '');
+        },
+        warn: (message, error) => {
+          console.warn(`🧀 [WARN] ${message}`, error || '');
+        },
+        error: (message, error) => {
+          console.error(`🧀 [ERROR] ${message}`, error || '');
+        },
+        debug: (message, data) => {
+          console.debug(`🧀 [DEBUG] ${message}`, data || '');
+        }
+      };
 
       // Add wallet connection logic
       let wallet = null;
       let connection = null;
       const CHEESE_TOKEN_ADDRESS = 'A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump';
 
-      // Function to fetch real pool data
+      // Function to create a fondue pot (moved to global scope)
+      const createFonduePot = (pool) => {
+        log.debug('Creating pot for pool:', pool);
+        const potGroup = new BABYLON.TransformNode("potGroup");
+        potGroup.parent = potsGroup;
+
+        // Scale based on TVL and adjust color based on price
+        const scaleFactor = BABYLON.Scalar.Clamp(pool.tvl / 50000, 0.5, 3);
+        const priceColor = new BABYLON.Color3(
+          1.0, // Red component
+          0.84 * (pool.price > 1 ? 1 : pool.price), // Green component affected by price
+          0 // Blue component
+        );
+
+        // Create pot body with source indicator
+        const body = BABYLON.MeshBuilder.CreateCylinder("body", {
+          height: scaleFactor * 1.5,
+          diameterTop: scaleFactor * 2,
+          diameterBottom: scaleFactor * 1.6,
+          tessellation: 32
+        });
+        const bodyMaterial = metalMaterial.clone("potMetal");
+        // Different glow colors for different sources
+        bodyMaterial.emissiveColor = pool.source === 'Meteora' ? 
+          new BABYLON.Color3(0.5, 0, 0.5) : // Purple for Meteora
+          pool.source === 'Raydium' ?
+          new BABYLON.Color3(0, 0.5, 0.5) : // Cyan for Raydium
+          new BABYLON.Color3(0.2, 0.2, 0.2); // Grey for Mock
+        body.material = bodyMaterial;
+        body.parent = potGroup;
+
+        // Add source label
+        const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+        const label = new BABYLON.GUI.TextBlock();
+        label.text = `${pool.pair}\n[${pool.source}]`;
+        label.color = pool.source === 'Meteora' ? "#ff00ff" : 
+                     pool.source === 'Raydium' ? "#00ffff" : "#ffffff";
+        label.fontSize = 14;
+        label.fontFamily = "Arial";
+        label.backgroundColor = "#000000AA";
+        advancedTexture.addControl(label);
+        label.linkWithMesh(body);
+        label.linkOffsetY = -50;
+
+        // Create cheese liquid
+        const cheese = BABYLON.MeshBuilder.CreateCylinder("cheese", {
+          height: scaleFactor * 1.2,
+          diameter: scaleFactor * 1.8,
+          tessellation: 32
+        });
+        cheese.position.y = -0.1;
+        cheese.material = cheeseMaterial.clone("potCheese");
+        cheese.parent = potGroup;
+
+        // Add handles
+        for (let i = 0; i < 2; i++) {
+          const handle = BABYLON.MeshBuilder.CreateTorus("handle", {
+            diameter: scaleFactor * 0.6,
+            thickness: scaleFactor * 0.1,
+            tessellation: 16
+          });
+          handle.rotation.z = Math.PI / 2;
+          handle.position.x = (i === 0 ? 1 : -1) * scaleFactor;
+          handle.position.y = scaleFactor * 0.4;
+          handle.material = metalMaterial.clone("handleMetal");
+          handle.parent = potGroup;
+        }
+
+        // Create bubbling effect
+        const bubbleSystem = new BABYLON.ParticleSystem("bubbles", 100, scene);
+        bubbleSystem.particleTexture = new BABYLON.Texture(
+          "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/circle.png", scene);
+        bubbleSystem.emitter = cheese;
+        bubbleSystem.minEmitBox = new BABYLON.Vector3(-scaleFactor * 0.8, 0, -scaleFactor * 0.8);
+        bubbleSystem.maxEmitBox = new BABYLON.Vector3(scaleFactor * 0.8, 0, scaleFactor * 0.8);
+        bubbleSystem.color1 = new BABYLON.Color4(1, 0.8, 0, 0.8);
+        bubbleSystem.color2 = new BABYLON.Color4(1, 0.5, 0, 0.8);
+        bubbleSystem.minSize = 0.1;
+        bubbleSystem.maxSize = 0.3;
+        bubbleSystem.minLifeTime = 0.5;
+        bubbleSystem.maxLifeTime = 1.5;
+        bubbleSystem.emitRate = 50;
+        bubbleSystem.gravity = new BABYLON.Vector3(0, 1, 0);
+        bubbleSystem.start();
+
+        return potGroup;
+      };
+
+      // Function to arrange pots (moved to global scope)
+      const arrangePots = (pools) => {
+        if (!potsGroup || !scene) {
+          log.error('Cannot arrange pots - scene or potsGroup not initialized');
+          return;
+        }
+
+        log.info('Arranging pots for pools:', {
+          poolCount: pools.length,
+          sources: pools.reduce((acc, p) => {
+            acc[p.source] = (acc[p.source] || 0) + 1;
+            return acc;
+          }, {}),
+          totalTVL: pools.reduce((sum, p) => sum + p.tvl, 0).toFixed(2)
+        });
+
+        // Clear existing pots
+        const existingPots = potsGroup.getChildren().length;
+        log.debug(`Clearing ${existingPots} existing pots`);
+        potsGroup.getChildren().forEach(child => child.dispose());
+
+        pools.forEach((pool, i) => {
+          try {
+            const angle = i * 0.4;
+            const radius = 35 + i * 0.3;
+            const pot = createFonduePot(pool);
+            pot.position = new BABYLON.Vector3(
+              radius * Math.cos(angle),
+              0,
+              radius * Math.sin(angle)
+            );
+            pot.rotation.y = Math.random() * Math.PI * 2;
+            log.debug(`Created pot ${i}:`, {
+              pair: pool.pair,
+              tvl: pool.tvl,
+              source: pool.source,
+              position: pot.position
+            });
+          } catch (error) {
+            log.error(`Failed to create pot ${i}:`, error);
+          }
+        });
+
+        log.info('Finished arranging pots:', {
+          created: potsGroup.getChildren().length,
+          expected: pools.length
+        });
+      };
+
+      // Enhanced pool initialization with better logging
       async function initializePools() {
+        log.info('Initializing pools...');
         try {
-          // If we have a connection, try to get real data
           if (connection) {
+            log.debug('Fetching pools from DEXes...');
+            const startTime = performance.now();
+
             // Fetch both Meteora and Raydium pools in parallel
             const [meteoraResponse, raydiumResponse] = await Promise.all([
               fetch('https://api.meteora.ag/v1/pools'),
@@ -173,6 +331,11 @@
             const meteoraData = await meteoraResponse.json();
             const raydiumData = await raydiumResponse.json();
             
+            log.debug('Raw pool data fetched:', {
+              meteoraTotal: meteoraData.pools?.length || 0,
+              raydiumTotal: raydiumData?.length || 0
+            });
+
             // Process Meteora pools
             const meteoraPools = meteoraData.pools
               .filter(pool => 
@@ -220,19 +383,23 @@
             const allPools = [...meteoraPools, ...raydiumPools]
               .sort((a, b) => b.tvl - a.tvl);
 
-            console.log('Fetched pools:', {
-              meteora: meteoraPools.length,
-              raydium: raydiumPools.length,
-              total: allPools.length
+            const endTime = performance.now();
+            log.info('Pool initialization complete:', {
+              meteoraPools: meteoraPools.length,
+              raydiumPools: raydiumPools.length,
+              totalPools: allPools.length,
+              totalTVL: allPools.reduce((sum, p) => sum + p.tvl, 0).toFixed(2),
+              timeMs: (endTime - startTime).toFixed(2)
             });
 
             return allPools;
           }
         } catch (error) {
-          console.warn('Error fetching real pool data:', error);
+          log.error('Failed to fetch real pool data:', error);
         }
 
-        // Fallback to mock data if real data fetch fails
+        // Fallback to mock data
+        log.warn('Using mock pool data');
         return meteoraPools.map((pool, i) => ({
           id: i,
           tvl: pool.tvl,
@@ -244,6 +411,7 @@
       }
 
       const createScene = async function() {
+        log.info('Creating scene...');
         // Create the scene
         scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0.05, 0.1, 0.2, 1.0);
@@ -296,8 +464,8 @@
           scene.clearColor = new BABYLON.Color4(0.1, 0.2, 0.3, 1.0);
         }
 
-        // Enhanced PBR Materials
-        const metalMaterial = new BABYLON.PBRMaterial("metal", scene);
+        // Initialize materials that will be needed globally
+        metalMaterial = new BABYLON.PBRMaterial("metal", scene);
         metalMaterial.metallic = 0.9;
         metalMaterial.roughness = 0.15;
         metalMaterial.albedoColor = new BABYLON.Color3(0.8, 0.8, 0.8);
@@ -306,7 +474,7 @@
         metalMaterial.clearCoat.intensity = 0.5;
         metalMaterial.clearCoat.roughness = 0.2;
 
-        const cheeseMaterial = new BABYLON.PBRMaterial("cheese", scene);
+        cheeseMaterial = new BABYLON.PBRMaterial("cheese", scene);
         cheeseMaterial.metallic = 0.1;
         cheeseMaterial.roughness = 0.3;
         cheeseMaterial.albedoColor = new BABYLON.Color3(1.0, 0.84, 0);
