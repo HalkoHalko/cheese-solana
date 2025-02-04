@@ -164,12 +164,17 @@
         try {
           // If we have a connection, try to get real data
           if (connection) {
-            // Fetch Meteora pools
-            const response = await fetch('https://api.meteora.ag/v1/pools');
-            const data = await response.json();
+            // Fetch both Meteora and Raydium pools in parallel
+            const [meteoraResponse, raydiumResponse] = await Promise.all([
+              fetch('https://api.meteora.ag/v1/pools'),
+              fetch('https://api.raydium.io/v2/main/pairs')
+            ]);
+
+            const meteoraData = await meteoraResponse.json();
+            const raydiumData = await raydiumResponse.json();
             
-            // Filter for cheese pools
-            const pools = data.pools
+            // Process Meteora pools
+            const meteoraPools = meteoraData.pools
               .filter(pool => 
                 pool.tokens.some(token => 
                   token.mint === CHEESE_TOKEN_ADDRESS
@@ -183,13 +188,45 @@
                   id: pool.address,
                   tvl: parseFloat(pool.tvl),
                   price: parseFloat(cheeseToken.price),
-                  weight: parseFloat(pool.volume24h) / 1000000, // Normalize weight based on volume
+                  weight: parseFloat(pool.volume24h) / 1000000,
                   pair: `🧀-${pool.name.replace('CHEESE-', '')}`,
                   source: 'Meteora'
                 };
               });
 
-            return pools;
+            // Process Raydium pools
+            const raydiumPools = raydiumData
+              .filter(pool => 
+                pool.baseMint === CHEESE_TOKEN_ADDRESS || 
+                pool.quoteMint === CHEESE_TOKEN_ADDRESS
+              )
+              .map(pool => {
+                const isBaseToken = pool.baseMint === CHEESE_TOKEN_ADDRESS;
+                const otherTokenAddress = isBaseToken ? pool.quoteMint : pool.baseMint;
+                const otherTokenInfo = tokens.find(t => t.address === otherTokenAddress);
+                const otherTokenSymbol = otherTokenInfo ? otherTokenInfo.symbol : 'Unknown';
+                
+                return {
+                  id: pool.ammId,
+                  tvl: parseFloat(pool.liquidity),
+                  price: isBaseToken ? parseFloat(pool.price) : 1 / parseFloat(pool.price),
+                  weight: parseFloat(pool.volume24h) / 1000000,
+                  pair: `🧀-${otherTokenSymbol}`,
+                  source: 'Raydium'
+                };
+              });
+
+            // Combine and sort pools by TVL
+            const allPools = [...meteoraPools, ...raydiumPools]
+              .sort((a, b) => b.tvl - a.tvl);
+
+            console.log('Fetched pools:', {
+              meteora: meteoraPools.length,
+              raydium: raydiumPools.length,
+              total: allPools.length
+            });
+
+            return allPools;
           }
         } catch (error) {
           console.warn('Error fetching real pool data:', error);
@@ -202,7 +239,7 @@
           price: 9.0,
           weight: pool.weight,
           pair: pool.pair,
-          source: 'Meteora'
+          source: 'Mock'
         }));
       }
 
@@ -490,8 +527,27 @@
             tessellation: 32
           });
           const bodyMaterial = metalMaterial.clone("potMetal");
-          body.material = metalMaterial.clone("potMetal");
+          // Different glow colors for different sources
+          bodyMaterial.emissiveColor = pool.source === 'Meteora' ? 
+            new BABYLON.Color3(0.5, 0, 0.5) : // Purple for Meteora
+            pool.source === 'Raydium' ?
+            new BABYLON.Color3(0, 0.5, 0.5) : // Cyan for Raydium
+            new BABYLON.Color3(0.2, 0.2, 0.2); // Grey for Mock
+          body.material = bodyMaterial;
           body.parent = potGroup;
+
+          // Add source label
+          const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+          const label = new BABYLON.GUI.TextBlock();
+          label.text = `${pool.pair}\n[${pool.source}]`;
+          label.color = pool.source === 'Meteora' ? "#ff00ff" : 
+                       pool.source === 'Raydium' ? "#00ffff" : "#ffffff";
+          label.fontSize = 14;
+          label.fontFamily = "Arial";
+          label.backgroundColor = "#000000AA";
+          advancedTexture.addControl(label);
+          label.linkWithMesh(body);
+          label.linkOffsetY = -50;
 
           // Create cheese liquid
           const cheese = BABYLON.MeshBuilder.CreateCylinder("cheese", {
