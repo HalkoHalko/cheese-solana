@@ -1,36 +1,39 @@
-localhost:8443 {
-    root * .
-    file_server browse
-    encode gzip
+{
+    # Global options
+    auto_https off  # Disable automatic HTTPS
+    admin off
+}
+
+:8443 {
     tls internal
+    
+    root * .
+    encode gzip
+    file_server
 
-    # Proper MIME type handling
-    @javascript {
-        path *.js
-    }
-    header @javascript Content-Type "application/javascript"
-
-    log {
-        output stdout
-        format console
-    }
-
-    # CORS and security headers
     header {
-        # CORS headers
         Access-Control-Allow-Origin "*"
         Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
         Access-Control-Allow-Headers "*"
         Access-Control-Allow-Credentials "true"
         Access-Control-Max-Age "3600"
-        
-        # Security headers with specific CSP
+        Cache-Control "no-store"
         Content-Security-Policy "
             default-src 'self';
-            script-src 'self' 'unsafe-eval' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdn.babylonjs.com;
+            script-src 'self' 'unsafe-eval' 'unsafe-inline' 
+                https://*.unpkg.com 
+                https://unpkg.com 
+                https://cdn.jsdelivr.net 
+                https://cdn.babylonjs.com;
             style-src 'self' 'unsafe-inline';
             img-src 'self' data: blob:;
-            connect-src 'self' https://api.mainnet-beta.solana.com https://amm-v2.meteora.ag https://api.raydium.io wss://api.mainnet-beta.solana.com;
+            connect-src 'self' 
+                https://*.unpkg.com 
+                https://unpkg.com 
+                https://api.mainnet-beta.solana.com 
+                https://amm-v2.meteora.ag 
+                https://api.raydium.io 
+                wss://api.mainnet-beta.solana.com;
             font-src 'self' data:;
             object-src 'none';
             frame-src 'self';
@@ -40,15 +43,11 @@ localhost:8443 {
             frame-ancestors 'none';
             upgrade-insecure-requests;
         "
-        
-        # Other security headers
-        Strict-Transport-Security "max-age=31536000;"
-        X-Content-Type-Options "nosniff"
-        X-Frame-Options "SAMEORIGIN"
-        Referrer-Policy "no-referrer-when-downgrade"
-        
-        # Cache control
-        Cache-Control "no-store"
+    }
+
+    log {
+        output stdout
+        format console
     }
 
     # Handle CORS preflight requests
