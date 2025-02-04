@@ -3,815 +3,577 @@
   <head>
     <meta charset="UTF-8" />
     <title>Cheese Coin Visualizer</title>
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
-          "three/": "https://unpkg.com/three@0.162.0/"
-        }
-      }
-    </script>
     <style>
-      /* Fullscreen canvas with no scrollbars */
       body {
         margin: 0;
+        padding: 0;
         overflow: hidden;
+        width: 100vw;
+        height: 100vh;
         background: #000;
       }
-      canvas {
-        display: block;
+      #renderCanvas {
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+      #priceDisplay {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.7);
+        color: #ffd700;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 18px;
+        border: 1px solid #ffd700;
+        text-shadow: 0 0 10px #ffd700;
+        z-index: 100;
+      }
+      #transactionInfo {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        padding: 15px;
+        border-radius: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        max-width: 300px;
+        border: 1px solid #ffd700;
+        z-index: 100;
+      }
+      .transaction {
+        margin-bottom: 10px;
+        padding: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 5px;
       }
     </style>
   </head>
   <body>
-    <!--
-      This app uses ES modules.
-      We import Three.js and post‑processing modules from jsDelivr.
-    -->
-    <script type="module">
-      // Import Three.js and required post-processing modules using import map
-      import * as THREE from 'three';
-      import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-      import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-      import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+    <canvas id="renderCanvas"></canvas>
+    <div id="priceDisplay"></div>
+    <div id="transactionInfo"></div>
 
-      // Transaction-related variables
-      const activeEffects = [];
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.babylonjs.com/materialsLibrary/babylonjs.materials.min.js"></script>
+    <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
+    <script src="https://cdn.babylonjs.com/postProcessesLibrary/babylonjs.postProcess.min.js"></script>
+
+    <script>
       const tokens = [
-        { symbol: 'SOL', logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png' },
-        { symbol: 'USDC', logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png' },
-        { symbol: 'RAY', logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R/logo.png' },
-        { symbol: 'SRM', logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt/logo.png' }
+        { 
+          symbol: '🧀', 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump/logo.png'
+        },
+        { 
+          symbol: 'SOL', 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png' 
+        },
+        { 
+          symbol: 'USDC', 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png' 
+        },
+        { 
+          symbol: 'BONK', 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/logo.png' 
+        }
       ];
 
-      // Mock transaction data generator
-      function generateMockTransaction() {
-        const types = ['swap', 'addLiquidity', 'removeLiquidity'];
-        const type = types[Math.floor(Math.random() * types.length)];
-        const token1 = tokens[Math.floor(Math.random() * tokens.length)];
-        let token2;
-        do {
-          token2 = tokens[Math.floor(Math.random() * tokens.length)];
-        } while (token2 === token1);
+      // Meteora pool configurations
+      const meteoraPools = [
+        { pair: '🧀-SOL', tvl: 150.0, weight: 0.4 },
+        { pair: '🧀-USDC', tvl: 180.0, weight: 0.3 },
+        { pair: '🧀-BONK', tvl: 120.0, weight: 0.3 }
+      ];
 
-        const amount = (Math.random() * 1000).toFixed(2);
-        
-        return {
-          type,
-          token1,
-          token2,
-          amount,
-          poolIndex: Math.floor(Math.random() * 90) // We'll update this when potsGroup is created
+      const canvas = document.getElementById("renderCanvas");
+      const engine = new BABYLON.Engine(canvas, true);
+      const priceDisplay = document.getElementById("priceDisplay");
+      const transactionInfo = document.getElementById("transactionInfo");
+
+      const createScene = async function() {
+        const scene = new BABYLON.Scene(engine);
+        scene.clearColor = new BABYLON.Color4(0.05, 0.1, 0.2, 1.0);
+
+        // Camera setup
+        const camera = new BABYLON.ArcRotateCamera("camera", 0, Math.PI / 3, 120, 
+          BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
+        camera.lowerRadiusLimit = 50;
+        camera.upperRadiusLimit = 200;
+        camera.wheelDeltaPercentage = 0.01;
+        camera.fov = 0.8; // Narrower field of view for more cinematic look
+        camera.inertia = 0.7; // Smoother camera movement
+
+        // Enhanced Lighting
+        const hemisphericLight = new BABYLON.HemisphericLight("hemispheric", 
+          new BABYLON.Vector3(0, 1, 0), scene);
+        hemisphericLight.intensity = 0.3;
+        hemisphericLight.groundColor = new BABYLON.Color3(0.1, 0.1, 0.3); // Bluish ground reflection
+
+        const spotLight = new BABYLON.SpotLight("spot", new BABYLON.Vector3(50, 50, 0),
+          new BABYLON.Vector3(-1, -1, 0), Math.PI / 3, 2, scene);
+        spotLight.intensity = 0.8;
+        spotLight.diffuse = new BABYLON.Color3(1, 0.95, 0.8); // Warm light color
+        spotLight.specular = new BABYLON.Color3(1, 0.9, 0.5);
+
+        // Add point lights for ambiance
+        const createPointLight = (name, position, color) => {
+            const light = new BABYLON.PointLight(name, position, scene);
+            light.intensity = 0.4;
+            light.diffuse = color;
+            light.specular = color;
+            light.radius = 50;
+            return light;
         };
-      }
 
-      // Create asset logo sprite
-      function createAssetLogo(logoUrl) {
-        const texture = new THREE.TextureLoader().load(logoUrl);
-        const spriteMaterial = new THREE.SpriteMaterial({ 
-          map: texture,
-          transparent: true,
-          opacity: 0.8
-        });
-        return new THREE.Sprite(spriteMaterial);
-      }
+        createPointLight("warmLight1", new BABYLON.Vector3(30, 20, 30), new BABYLON.Color3(1, 0.5, 0.2));
+        createPointLight("coolLight1", new BABYLON.Vector3(-30, 20, -30), new BABYLON.Color3(0.2, 0.3, 1));
 
-      // Transaction effect visualization
-      function visualizeTransaction(transaction) {
-        if (!potsGroup || !potsGroup.children.length) return;
-        
-        const pot = potsGroup.children[transaction.poolIndex % potsGroup.children.length];
-        if (!pot) return;
-
-        // Create particle effect
-        const particles = new THREE.Group();
-        const particleCount = 20;
-        const particleGeometry = new THREE.SphereGeometry(0.1);
-        const particleMaterial = new THREE.MeshPhysicalMaterial({
-          color: transaction.type === 'addLiquidity' ? 0x00ff00 : 0xff0000,
-          emissive: transaction.type === 'addLiquidity' ? 0x00ff00 : 0xff0000,
-          emissiveIntensity: 0.5,
-          transparent: true,
-          opacity: 0.8
-        });
-
-        for (let i = 0; i < particleCount; i++) {
-          const particle = new THREE.Mesh(particleGeometry, particleMaterial);
-          const angle = (Math.PI * 2 * i) / particleCount;
-          particle.position.set(
-            Math.cos(angle) * 2,
-            Math.random() * 2,
-            Math.sin(angle) * 2
-          );
-          particle.userData.velocity = new THREE.Vector3(
-            Math.random() - 0.5,
-            Math.random() * 2,
-            Math.random() - 0.5
-          );
-          particles.add(particle);
-        }
-
-        // Add logos
-        const logo1 = createAssetLogo(transaction.token1.logo);
-        const logo2 = createAssetLogo(transaction.token2.logo);
-        logo1.scale.set(2, 2, 2);
-        logo2.scale.set(2, 2, 2);
-        logo1.position.set(-3, 5, 0);
-        logo2.position.set(3, 5, 0);
-        particles.add(logo1);
-        particles.add(logo2);
-
-        // Position effect at pot
-        particles.position.copy(pot.position);
-        scene.add(particles);
-
-        // Update pot size for addLiquidity/removeLiquidity
-        if (transaction.type !== 'swap') {
-          const scale = transaction.type === 'addLiquidity' ? 1.1 : 0.9;
-          pot.scale.multiplyScalar(scale);
-        }
-
-        // Add transaction to info display
-        const txDiv = document.createElement('div');
-        txDiv.className = 'transaction';
-        txDiv.innerHTML = `
-          ${transaction.type.toUpperCase()}<br>
-          ${transaction.token1.symbol} ⟷ ${transaction.token2.symbol}<br>
-          Amount: ${transaction.amount}
-        `;
-        transactionInfo.insertBefore(txDiv, transactionInfo.firstChild);
-        if (transactionInfo.children.length > 5) {
-          transactionInfo.removeChild(transactionInfo.lastChild);
-        }
-
-        // Animate and remove effect after delay
-        setTimeout(() => {
-          scene.remove(particles);
-        }, 2000);
-
-        return particles;
-      }
-
-      // -------------------------------
-      // Scene, Camera, Renderer Setup
-      // -------------------------------
-      const scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x1a2f4f); // Deep winter evening blue
-
-      // Add fog for winter atmosphere
-      scene.fog = new THREE.FogExp2(0x1a2f4f, 0.002);
-
-      const camera = new THREE.PerspectiveCamera(
-        75,
-        window.innerWidth / window.innerHeight,
-        0.1,
-        1000
-      );
-      camera.position.set(0, 80, 120);
-      camera.lookAt(0, 0, 0);
-
-      const renderer = new THREE.WebGLRenderer({ 
-        antialias: true,
-        powerPreference: "high-performance"
-      });
-      renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.2;
-      renderer.shadowMap.enabled = true;
-      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-      document.body.appendChild(renderer.domElement);
-
-      // -------------------------------
-      // Post-Processing: Enhanced Bloom Effect
-      // -------------------------------
-      const composer = new EffectComposer(renderer);
-      const renderPass = new RenderPass(scene, camera);
-      composer.addPass(renderPass);
-      const bloomPass = new UnrealBloomPass(
-        new THREE.Vector2(window.innerWidth, window.innerHeight),
-        1.5, // Increased strength for more glow
-        0.5, // Increased radius for softer bloom
-        0.2  // Lower threshold to make more elements bloom
-      );
-      composer.addPass(bloomPass);
-
-      // -------------------------------
-      // Create Snowy Ground
-      // -------------------------------
-      function createGround() {
-        const groundGeometry = new THREE.PlaneGeometry(500, 500);
-        const snowTexture = new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/terrain/grasslight-big.jpg');
-        snowTexture.wrapS = snowTexture.wrapT = THREE.RepeatWrapping;
-        snowTexture.repeat.set(10, 10);
-        
-        const groundMaterial = new THREE.MeshStandardMaterial({
-          map: snowTexture,
-          color: 0xffffff,
-          roughness: 0.8,
-          metalness: 0.1
-        });
-        
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        ground.position.y = -10;
-        ground.receiveShadow = true;
-        scene.add(ground);
-      }
-
-      // -------------------------------
-      // Create Snow Particles
-      // -------------------------------
-      function createSnow() {
-        const snowGeometry = new THREE.BufferGeometry();
-        const snowCount = 5000;
-        const positions = [];
-        
-        for (let i = 0; i < snowCount; i++) {
-          positions.push(
-            (Math.random() - 0.5) * 400, // Wider spread
-            Math.random() * 200, // Higher for snow to fall from
-            (Math.random() - 0.5) * 400
-          );
-        }
-        
-        snowGeometry.setAttribute(
-          'position',
-          new THREE.Float32BufferAttribute(positions, 3)
-        );
-        
-        const snowMaterial = new THREE.PointsMaterial({
-          color: 0xffffff,
-          size: 0.5,
-          transparent: true,
-          opacity: 0.8,
-          map: new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/snowflake2.png'),
-          blending: THREE.AdditiveBlending
-        });
-        
-        const snow = new THREE.Points(snowGeometry, snowMaterial);
-        scene.add(snow);
-        return snow;
-      }
-
-      // Create winter scene elements
-      createGround();
-      const snow = createSnow();
-
-      // -------------------------------
-      // Enhanced Lighting Setup for Winter Scene
-      // -------------------------------
-      // Dim ambient light for evening
-      const ambientLight = new THREE.AmbientLight(0x445566, 0.4);
-      scene.add(ambientLight);
-      
-      // Warm window light
-      const windowLight = new THREE.PointLight(0xffa726, 1, 150);
-      windowLight.position.set(-50, 30, -50);
-      scene.add(windowLight);
-
-      // Cool moonlight
-      const moonLight = new THREE.DirectionalLight(0x8aa7cf, 0.6);
-      moonLight.position.set(50, 100, 50);
-      moonLight.castShadow = true;
-      scene.add(moonLight);
-
-      // Warm indoor lighting
-      const indoorLight = new THREE.SpotLight(0xffd700, 0.8);
-      indoorLight.position.set(0, 80, 0);
-      indoorLight.angle = Math.PI / 3;
-      indoorLight.penumbra = 0.5;
-      indoorLight.decay = 1.5;
-      indoorLight.distance = 200;
-      indoorLight.castShadow = true;
-      scene.add(indoorLight);
-
-      // -------------------------------
-      // Enhanced Starfield Background
-      // -------------------------------
-      function createStarField() {
-        const starGeometry = new THREE.BufferGeometry();
-        const starCount = 2000; // More stars
-        const positions = [];
-        const colors = []; // Add color variation to stars
-        
-        for (let i = 0; i < starCount; i++) {
-          positions.push(
-            (Math.random() - 0.5) * 1000,
-            (Math.random() - 0.5) * 1000,
-            (Math.random() - 0.5) * 1000
-          );
-          
-          // Add slight color variation to stars
-          const color = new THREE.Color();
-          color.setHSL(Math.random() * 0.2 + 0.5, 0.2, Math.random() * 0.2 + 0.8);
-          colors.push(color.r, color.g, color.b);
-        }
-        
-        starGeometry.setAttribute(
-          'position',
-          new THREE.Float32BufferAttribute(positions, 3)
-        );
-        starGeometry.setAttribute(
-          'color',
-          new THREE.Float32BufferAttribute(colors, 3)
-        );
-        
-        const starMaterial = new THREE.PointsMaterial({
-          size: 2,
-          vertexColors: true,
-          transparent: true,
-          opacity: 0.8
-        });
-        
-        const stars = new THREE.Points(starGeometry, starMaterial);
-        scene.add(stars);
-        return stars; // Return for animation
-      }
-      const stars = createStarField();
-
-      // -------------------------------
-      // Liquidity Pool Data
-      // -------------------------------
-      // This function will always return data, either real or simulated
-      async function fetchLiquidityPools() {
+        // Environment
+        let envTexture;
         try {
-          const response = await fetch('http://localhost:8080/get-liquidity-pools');
-          if (!response.ok) throw new Error('Network response was not ok');
-          const data = await response.json();
-          return data;
+          envTexture = new BABYLON.CubeTexture(
+            "https://assets.babylonjs.com/environments/environmentSpecular.env", scene);
+          scene.environmentTexture = envTexture;
+          scene.createDefaultSkybox(envTexture, true, 1000);
         } catch (error) {
-          console.warn('Using simulated data:', error.message);
-          // Always return simulated data if real data is unavailable
-          return Array.from({ length: 90 }, (_, i) => ({
-            id: i,
-            tvl: Math.random() * 190 + 10
-          }));
-        }
-      }
-
-      // -------------------------------
-      // Fondue Pot Creation
-      // -------------------------------
-      // Each liquidity pool is visualized as a fondue pot.
-      // The size of the pot scales with the pool's TVL.
-      function createFonduePot(tvl) {
-        const group = new THREE.Group();
-        const scaleFactor = THREE.MathUtils.clamp(tvl / 50, 0.5, 3);
-
-        // Base plate (new!)
-        const basePlateGeometry = new THREE.CylinderGeometry(
-          scaleFactor * 1.2,
-          scaleFactor * 1.2,
-          0.1,
-          32
-        );
-        const basePlateMaterial = new THREE.MeshStandardMaterial({
-          color: 0x3d1f00,
-          roughness: 0.3,
-          metalness: 0.8
-        });
-        const basePlateMesh = new THREE.Mesh(basePlateGeometry, basePlateMaterial);
-        basePlateMesh.position.y = -scaleFactor * 0.75;
-        group.add(basePlateMesh);
-
-        // Outer pot body with more detailed material
-        const potGeometry = new THREE.CylinderGeometry(
-          scaleFactor,
-          scaleFactor * 0.8, // Slightly tapered for more pot-like appearance
-          scaleFactor * 1.5,
-          32
-        );
-        const potMaterial = new THREE.MeshStandardMaterial({
-          color: 0x736F6E,
-          roughness: 0.3,
-          metalness: 0.8,
-          envMapIntensity: 1
-        });
-        const potMesh = new THREE.Mesh(potGeometry, potMaterial);
-        potMesh.castShadow = true;
-        potMesh.receiveShadow = true;
-        group.add(potMesh);
-
-        // Bubbling cheese effect
-        const cheeseBubblesGroup = new THREE.Group();
-        const bubbleCount = Math.floor(scaleFactor * 10);
-        for (let i = 0; i < bubbleCount; i++) {
-          const bubbleGeometry = new THREE.SphereGeometry(0.1 * Math.random());
-          const bubbleMaterial = new THREE.MeshPhysicalMaterial({
-            color: 0xffd700,
-            emissive: 0xffa500,
-            emissiveIntensity: 0.5,
-            transparent: true,
-            opacity: 0.7,
-            metalness: 0.3,
-            roughness: 0.2
-          });
-          const bubble = new THREE.Mesh(bubbleGeometry, bubbleMaterial);
-          bubble.position.set(
-            (Math.random() - 0.5) * scaleFactor * 1.2,
-            Math.random() * scaleFactor * 0.5,
-            (Math.random() - 0.5) * scaleFactor * 1.2
-          );
-          bubble.userData.floatSpeed = Math.random() * 0.02 + 0.01;
-          bubble.userData.originalY = bubble.position.y;
-          cheeseBubblesGroup.add(bubble);
-        }
-        group.add(cheeseBubblesGroup);
-
-        // Melted cheese inside (improved)
-        const cheeseGeometry = new THREE.CylinderGeometry(
-          scaleFactor * 0.85,
-          scaleFactor * 0.85,
-          scaleFactor * 1.3,
-          32
-        );
-        const cheeseMaterial = new THREE.MeshPhysicalMaterial({
-          color: 0xffd700,
-          emissive: 0xffc700,
-          emissiveIntensity: 0.5,
-          transparent: true,
-          opacity: 0.9,
-          roughness: 0.2,
-          metalness: 0.3,
-          clearcoat: 1.0,
-          clearcoatRoughness: 0.1
-        });
-        const cheeseMesh = new THREE.Mesh(cheeseGeometry, cheeseMaterial);
-        cheeseMesh.position.y = 0.1;
-        cheeseMesh.castShadow = true;
-        group.add(cheeseMesh);
-
-        // Enhanced rim with more detail
-        const rimGeometry = new THREE.TorusGeometry(
-          scaleFactor,
-          scaleFactor * 0.12,
-          16,
-          100
-        );
-        const rimMaterial = new THREE.MeshStandardMaterial({
-          color: 0xc0c0c0,
-          roughness: 0.2,
-          metalness: 0.9
-        });
-        const rimMesh = new THREE.Mesh(rimGeometry, rimMaterial);
-        rimMesh.rotation.x = Math.PI / 2;
-        rimMesh.position.y = scaleFactor * 0.75;
-        rimMesh.castShadow = true;
-        group.add(rimMesh);
-
-        // Add handles (new!)
-        const handleGroup = new THREE.Group();
-        const handleGeometry = new THREE.TorusGeometry(
-          scaleFactor * 0.3,
-          scaleFactor * 0.05,
-          16,
-          100,
-          Math.PI
-        );
-        const handleMaterial = new THREE.MeshStandardMaterial({
-          color: 0xc0c0c0,
-          roughness: 0.2,
-          metalness: 0.9
-        });
-        
-        // Create two handles
-        for (let i = 0; i < 2; i++) {
-          const handle = new THREE.Mesh(handleGeometry, handleMaterial);
-          handle.rotation.z = i * Math.PI;
-          handle.rotation.y = Math.PI / 2;
-          handle.position.x = (i === 0 ? 1 : -1) * scaleFactor;
-          handleGroup.add(handle);
-        }
-        handleGroup.position.y = scaleFactor * 0.4;
-        group.add(handleGroup);
-
-        // Store bubbles group for animation
-        group.userData.bubbles = cheeseBubblesGroup;
-        group.userData.scaleFactor = scaleFactor;
-
-        return group;
-      }
-
-      // -------------------------------
-      // Arrange Pools in a Spiral
-      // -------------------------------
-      const potsGroup = new THREE.Group();
-      scene.add(potsGroup);
-
-      // Add CSS for price display
-      const style = document.createElement('style');
-      style.textContent = `
-        #priceDisplay {
-          position: fixed;
-          bottom: 20px;
-          left: 50%;
-          transform: translateX(-50%);
-          background: rgba(0, 0, 0, 0.7);
-          color: #ffd700;
-          padding: 10px 20px;
-          border-radius: 10px;
-          font-family: Arial, sans-serif;
-          font-size: 18px;
-          border: 1px solid #ffd700;
-          text-shadow: 0 0 10px #ffd700;
-        }
-      `;
-      document.head.appendChild(style);
-
-      // Add price display element
-      const priceDisplay = document.createElement('div');
-      priceDisplay.id = 'priceDisplay';
-      document.body.appendChild(priceDisplay);
-
-      // Create wooden table with a more rustic feel
-      function createTable() {
-        const group = new THREE.Group();
-        
-        // Table top (round)
-        const tableGeometry = new THREE.CylinderGeometry(30, 30, 3, 32);
-        const tableTexture = new THREE.TextureLoader().load('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/hardwood2_diffuse.jpg');
-        tableTexture.wrapS = tableTexture.wrapT = THREE.RepeatWrapping;
-        tableTexture.repeat.set(2, 2); // Larger wood grain pattern
-        
-        const tableMaterial = new THREE.MeshStandardMaterial({
-          map: tableTexture,
-          roughness: 0.9, // More rustic finish
-          metalness: 0.1,
-          color: 0x3d2b1f // Darker, warmer wood tone
-        });
-        
-        const tableMesh = new THREE.Mesh(tableGeometry, tableMaterial);
-        tableMesh.position.y = -2;
-        tableMesh.receiveShadow = true;
-        tableMesh.castShadow = true;
-        group.add(tableMesh);
-
-        // Thicker, more rustic table legs
-        const legGeometry = new THREE.CylinderGeometry(1.5, 2, 12, 8);
-        const legMaterial = new THREE.MeshStandardMaterial({
-          map: tableTexture,
-          roughness: 0.9,
-          metalness: 0.1,
-          color: 0x3d2b1f
-        });
-
-        for (let i = 0; i < 4; i++) {
-          const leg = new THREE.Mesh(legGeometry, legMaterial);
-          const angle = (i * Math.PI) / 2;
-          leg.position.x = Math.cos(angle) * 25;
-          leg.position.z = Math.sin(angle) * 25;
-          leg.position.y = -8;
-          leg.castShadow = true;
-          group.add(leg);
+          console.warn("Failed to load environment texture:", error);
+          // Set a default background color instead
+          scene.clearColor = new BABYLON.Color4(0.1, 0.2, 0.3, 1.0);
         }
 
-        // Add a tablecloth
-        const clothGeometry = new THREE.CylinderGeometry(31, 31, 0.1, 32);
-        const clothMaterial = new THREE.MeshStandardMaterial({
-          color: 0x8b0000, // Deep red tablecloth
-          roughness: 0.8,
-          metalness: 0.1
-        });
-        const tablecloth = new THREE.Mesh(clothGeometry, clothMaterial);
-        tablecloth.position.y = -0.5;
-        tablecloth.receiveShadow = true;
-        group.add(tablecloth);
+        // Enhanced PBR Materials
+        const metalMaterial = new BABYLON.PBRMaterial("metal", scene);
+        metalMaterial.metallic = 0.9;
+        metalMaterial.roughness = 0.15;
+        metalMaterial.albedoColor = new BABYLON.Color3(0.8, 0.8, 0.8);
+        metalMaterial.environmentIntensity = 0.7;
+        metalMaterial.clearCoat.isEnabled = true;
+        metalMaterial.clearCoat.intensity = 0.5;
+        metalMaterial.clearCoat.roughness = 0.2;
 
-        return group;
-      }
+        const cheeseMaterial = new BABYLON.PBRMaterial("cheese", scene);
+        cheeseMaterial.metallic = 0.1;
+        cheeseMaterial.roughness = 0.3;
+        cheeseMaterial.albedoColor = new BABYLON.Color3(1.0, 0.84, 0);
+        cheeseMaterial.emissiveColor = new BABYLON.Color3(0.4, 0.3, 0);
+        cheeseMaterial.subSurface.isTranslucencyEnabled = true;
+        cheeseMaterial.subSurface.translucencyIntensity = 0.8;
+        cheeseMaterial.subSurface.tintColor = new BABYLON.Color3(1.0, 0.9, 0.5);
+        cheeseMaterial.clearCoat.isEnabled = true;
+        cheeseMaterial.clearCoat.intensity = 0.3;
+        cheeseMaterial.clearCoat.roughness = 0.1;
 
-      // Create Buffalo-appropriate food items
-      function createFoodItems() {
-        const group = new THREE.Group();
+        // Enhanced Ground
+        const ground = BABYLON.MeshBuilder.CreateGround("ground", 
+          {width: 500, height: 500, subdivisions: 100}, scene);
+        const snowMaterial = new BABYLON.PBRMaterial("snow", scene);
+        snowMaterial.metallic = 0;
+        snowMaterial.roughness = 0.95;
+        snowMaterial.albedoColor = new BABYLON.Color3(0.95, 0.95, 1);
+        snowMaterial.subSurface.isTranslucencyEnabled = true;
+        snowMaterial.subSurface.translucencyIntensity = 0.3;
+        snowMaterial.subSurface.tintColor = new BABYLON.Color3(0.8, 0.8, 1);
         
-        // Create various food items more appropriate for Buffalo
-        const foods = [
-          { type: 'wings', color: 0x8B4513, size: [1.5, 0.5, 1.5], count: 8 },
-          { type: 'celery', color: 0x90EE90, size: [0.3, 2, 0.3], count: 6 },
-          { type: 'carrots', color: 0xFFA500, size: [0.3, 2, 0.3], count: 6 },
-          { type: 'bread', color: 0xDEB887, size: [1, 1, 1], count: 8 }
-        ];
+        // Add subtle displacement to ground
+        const noiseTexture = new BABYLON.NoiseProceduralTexture("perlin", 256, scene);
+        noiseTexture.animationSpeedFactor = 0.1;
+        noiseTexture.persistence = 0.2;
+        noiseTexture.brightness = 0.5;
+        noiseTexture.octaves = 3;
 
-        foods.forEach((food, index) => {
-          for (let i = 0; i < food.count; i++) {
-            const foodGeometry = new THREE.BoxGeometry(...food.size);
-            const foodMaterial = new THREE.MeshStandardMaterial({
-              color: food.color,
-              roughness: 0.7,
-              metalness: 0.2
+        snowMaterial.bumpTexture = noiseTexture;
+        snowMaterial.bumpTexture.level = 0.2;
+        ground.material = snowMaterial;
+
+        // Enhanced Snow Particles
+        const snowSystem = new BABYLON.ParticleSystem("snow", 8000, scene);
+        snowSystem.particleTexture = new BABYLON.Texture(
+          "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/snowflake2.png", scene);
+        snowSystem.emitter = new BABYLON.Vector3(0, 100, 0);
+        snowSystem.minEmitBox = new BABYLON.Vector3(-250, 0, -250);
+        snowSystem.maxEmitBox = new BABYLON.Vector3(250, 0, 250);
+        snowSystem.color1 = new BABYLON.Color4(1, 1, 1, 0.9);
+        snowSystem.color2 = new BABYLON.Color4(0.9, 0.9, 1, 0.8);
+        snowSystem.colorDead = new BABYLON.Color4(0.9, 0.9, 1, 0.0);
+        snowSystem.minSize = 0.1;
+        snowSystem.maxSize = 0.5;
+        snowSystem.minLifeTime = 5;
+        snowSystem.maxLifeTime = 8;
+        snowSystem.emitRate = 1000;
+        snowSystem.blendMode = BABYLON.ParticleSystem.BLENDMODE_ADD;
+        snowSystem.gravity = new BABYLON.Vector3(0, -9.81, 0);
+        snowSystem.direction1 = new BABYLON.Vector3(-1, -1, -1);
+        snowSystem.direction2 = new BABYLON.Vector3(1, -1, 1);
+        snowSystem.minAngularSpeed = -0.5;
+        snowSystem.maxAngularSpeed = 0.5;
+        snowSystem.start();
+
+        // Add fog for depth
+        scene.fogMode = BABYLON.Scene.FOGMODE_EXP2;
+        scene.fogColor = new BABYLON.Color3(0.9, 0.9, 0.95);
+        scene.fogDensity = 0.001;
+
+        // Create fondue pots group
+        const potsGroup = new BABYLON.TransformNode("potsGroup");
+
+        // Create central price display
+        const createPriceDisplay = () => {
+            // Create a manager for the GUI elements
+            const guiManager = new BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+
+            // Create a stack panel for vertical arrangement
+            const stackPanel = new BABYLON.GUI.StackPanel();
+            stackPanel.isVertical = true;
+            guiManager.addControl(stackPanel);
+
+            // Create text block for "CHEESE"
+            const titleText = new BABYLON.GUI.TextBlock();
+            titleText.text = "🧀 CHEESE 🧀";
+            titleText.color = "#FFD700";
+            titleText.fontSize = 40;
+            titleText.fontFamily = "Arial";
+            titleText.shadowBlur = 10;
+            titleText.shadowColor = "#FFD700";
+            titleText.shadowOffsetX = 2;
+            titleText.shadowOffsetY = 2;
+            titleText.height = "80px";
+            stackPanel.addControl(titleText);
+
+            // Add contract address
+            const addressText = new BABYLON.GUI.TextBlock();
+            addressText.text = "A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump";
+            addressText.color = "#AAAAAA";
+            addressText.fontSize = 14;
+            addressText.fontFamily = "monospace";
+            addressText.height = "30px";
+            stackPanel.addControl(addressText);
+
+            // Create text block for price
+            const priceText = new BABYLON.GUI.TextBlock();
+            priceText.text = "$0.00";
+            priceText.color = "#FFFFFF";
+            priceText.fontSize = 60;
+            priceText.fontFamily = "Arial";
+            priceText.shadowBlur = 15;
+            priceText.shadowColor = "#FFD700";
+            priceText.shadowOffsetX = 3;
+            priceText.shadowOffsetY = 3;
+            priceText.height = "100px";
+            stackPanel.addControl(priceText);
+
+            // Create glowing circle background
+            const circle = new BABYLON.GUI.Ellipse();
+            circle.width = "400px"; // Increased size to accommodate address
+            circle.height = "400px";
+            circle.color = "#FFD700";
+            circle.thickness = 2;
+            circle.background = "rgba(0, 0, 0, 0.5)";
+            circle.alpha = 0.7;
+            guiManager.addControl(circle);
+
+            // Add outer glow circle
+            const outerCircle = new BABYLON.GUI.Ellipse();
+            outerCircle.width = "420px"; // Increased size to match inner circle
+            outerCircle.height = "420px";
+            outerCircle.color = "#FFD700";
+            outerCircle.thickness = 1;
+            outerCircle.background = "transparent";
+            outerCircle.alpha = 0.3;
+            guiManager.addControl(outerCircle);
+
+            // Add price change indicator
+            const changeIndicator = new BABYLON.GUI.TextBlock();
+            changeIndicator.text = "";
+            changeIndicator.color = "#00FF00";
+            changeIndicator.fontSize = 24;
+            changeIndicator.fontFamily = "Arial";
+            changeIndicator.height = "40px";
+            stackPanel.addControl(changeIndicator);
+
+            // Add click handler to copy address
+            addressText.isPointerBlocker = true;
+            addressText.onPointerUpObservable.add(() => {
+                navigator.clipboard.writeText(addressText.text).then(() => {
+                    const originalColor = addressText.color;
+                    addressText.color = "#00FF00";
+                    setTimeout(() => {
+                        addressText.color = originalColor;
+                    }, 500);
+                });
             });
-            
-            const foodItem = new THREE.Mesh(foodGeometry, foodMaterial);
-            const angle = (i * Math.PI * 2) / food.count + (index * 0.4);
-            const radius = 15 + index * 2; // Arrange in concentric circles
-            foodItem.position.x = Math.cos(angle) * radius;
-            foodItem.position.z = Math.sin(angle) * radius;
-            foodItem.position.y = -0.5;
-            foodItem.rotation.y = Math.random() * Math.PI;
-            foodItem.castShadow = true;
-            group.add(foodItem);
+
+            // Add hover effect for address
+            addressText.onPointerEnterObservable.add(() => {
+                addressText.color = "#FFFFFF";
+            });
+            addressText.onPointerOutObservable.add(() => {
+                addressText.color = "#AAAAAA";
+            });
+
+            let currentPrice = 9.00; // Starting price
+            let time = 0;
+            scene.onBeforeRenderObservable.add(() => {
+                time += 0.02;
+                // Pulse main circle
+                circle.scaleX = 1 + Math.sin(time) * 0.05;
+                circle.scaleY = 1 + Math.sin(time) * 0.05;
+                // Pulse outer circle opposite to main circle
+                outerCircle.scaleX = 1 + Math.sin(time + Math.PI) * 0.08;
+                outerCircle.scaleY = 1 + Math.sin(time + Math.PI) * 0.08;
+                // Pulse title opacity
+                titleText.alpha = 0.8 + Math.sin(time) * 0.2;
+                
+                // Update price with smooth transitions
+                if (Math.random() < 0.01) { // 1% chance each frame
+                    const newPrice = (Math.random() * 2 + 8).toFixed(2); // Random price between $8-$10
+                    const priceChange = (newPrice - currentPrice).toFixed(2);
+                    const isPositive = priceChange > 0;
+                    
+                    // Update price display
+                    priceText.text = `$${newPrice}`;
+                    currentPrice = parseFloat(newPrice);
+
+                    // Show and animate price change indicator
+                    changeIndicator.text = `${isPositive ? '▲' : '▼'} ${Math.abs(priceChange)}`;
+                    changeIndicator.color = isPositive ? "#00FF00" : "#FF0000";
+                    
+                    // Flash effect on price change
+                    circle.alpha = 1;
+                    setTimeout(() => {
+                        circle.alpha = 0.7;
+                    }, 200);
+                }
+            });
+
+            return { titleText, priceText, circle, outerCircle, changeIndicator };
+        };
+
+        const priceDisplay = createPriceDisplay();
+
+        // Function to create a fondue pot
+        const createFonduePot = (tvl) => {
+          const potGroup = new BABYLON.TransformNode("potGroup");
+          potGroup.parent = potsGroup;
+
+          const scaleFactor = BABYLON.Scalar.Clamp(tvl / 50, 0.5, 3);
+
+          // Create pot body
+          const body = BABYLON.MeshBuilder.CreateCylinder("body", {
+            height: scaleFactor * 1.5,
+            diameterTop: scaleFactor * 2,
+            diameterBottom: scaleFactor * 1.6,
+            tessellation: 32
+          });
+          body.material = metalMaterial.clone("potMetal");
+          body.parent = potGroup;
+
+          // Create cheese liquid
+          const cheese = BABYLON.MeshBuilder.CreateCylinder("cheese", {
+            height: scaleFactor * 1.2,
+            diameter: scaleFactor * 1.8,
+            tessellation: 32
+          });
+          cheese.position.y = -0.1;
+          cheese.material = cheeseMaterial.clone("potCheese");
+          cheese.parent = potGroup;
+
+          // Add handles
+          for (let i = 0; i < 2; i++) {
+            const handle = BABYLON.MeshBuilder.CreateTorus("handle", {
+              diameter: scaleFactor * 0.6,
+              thickness: scaleFactor * 0.1,
+              tessellation: 16
+            });
+            handle.rotation.z = Math.PI / 2;
+            handle.position.x = (i === 0 ? 1 : -1) * scaleFactor;
+            handle.position.y = scaleFactor * 0.4;
+            handle.material = metalMaterial.clone("handleMetal");
+            handle.parent = potGroup;
           }
-        });
 
-        // Add some blue cheese dip bowls
-        for (let i = 0; i < 4; i++) {
-          const bowlGeometry = new THREE.CylinderGeometry(1.5, 1, 1, 16);
-          const bowlMaterial = new THREE.MeshStandardMaterial({
-            color: 0xDDDDDD,
-            roughness: 0.4,
-            metalness: 0.6
+          // Create bubbling effect
+          const bubbleSystem = new BABYLON.ParticleSystem("bubbles", 100, scene);
+          bubbleSystem.particleTexture = new BABYLON.Texture(
+            "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/circle.png", scene);
+          bubbleSystem.emitter = cheese;
+          bubbleSystem.minEmitBox = new BABYLON.Vector3(-scaleFactor * 0.8, 0, -scaleFactor * 0.8);
+          bubbleSystem.maxEmitBox = new BABYLON.Vector3(scaleFactor * 0.8, 0, scaleFactor * 0.8);
+          bubbleSystem.color1 = new BABYLON.Color4(1, 0.8, 0, 0.8);
+          bubbleSystem.color2 = new BABYLON.Color4(1, 0.5, 0, 0.8);
+          bubbleSystem.minSize = 0.1;
+          bubbleSystem.maxSize = 0.3;
+          bubbleSystem.minLifeTime = 0.5;
+          bubbleSystem.maxLifeTime = 1.5;
+          bubbleSystem.emitRate = 50;
+          bubbleSystem.gravity = new BABYLON.Vector3(0, 1, 0);
+          bubbleSystem.start();
+
+          return potGroup;
+        };
+
+        // Function to arrange pots
+        const arrangePots = (pools) => {
+          // Clear existing pots
+          potsGroup.getChildren().forEach(child => child.dispose());
+
+          pools.forEach((pool, i) => {
+            const angle = i * 0.4;
+            const radius = 35 + i * 0.3;
+            const pot = createFonduePot(pool.tvl);
+            pot.position = new BABYLON.Vector3(
+              radius * Math.cos(angle),
+              0,
+              radius * Math.sin(angle)
+            );
+            pot.rotation.y = Math.random() * Math.PI * 2;
           });
-          const bowl = new THREE.Mesh(bowlGeometry, bowlMaterial);
-          const angle = (i * Math.PI) / 2;
-          const radius = 10;
-          bowl.position.x = Math.cos(angle) * radius;
-          bowl.position.z = Math.sin(angle) * radius;
-          bowl.position.y = -1;
-          bowl.castShadow = true;
-          group.add(bowl);
+        };
 
-          // Add blue cheese dip inside
-          const dipGeometry = new THREE.CylinderGeometry(1.2, 1.2, 0.3, 16);
-          const dipMaterial = new THREE.MeshStandardMaterial({
-            color: 0xE6E6FA,
-            roughness: 0.6,
-            metalness: 0.2
-          });
-          const dip = new THREE.Mesh(dipGeometry, dipMaterial);
-          dip.position.copy(bowl.position);
-          dip.position.y -= 0.3;
-          group.add(dip);
-        }
+        // Mock data generation with Meteora pools
+        const generateMockTransaction = () => {
+          const poolIndex = Math.floor(Math.random() * meteoraPools.length);
+          const pool = meteoraPools[poolIndex];
+          const [token1Symbol, token2Symbol] = pool.pair.split('-');
+          const token1 = tokens.find(t => t.symbol === token1Symbol);
+          const token2 = tokens.find(t => t.symbol === token2Symbol);
+          const types = ['swap', 'addLiquidity', 'removeLiquidity'];
+          const type = types[Math.floor(Math.random() * types.length)];
 
-        return group;
-      }
+          return {
+            type,
+            token1,
+            token2,
+            amount: (Math.random() * 1000 * pool.weight).toFixed(2),
+            poolIndex
+          };
+        };
 
-      // Add table and food to the scene
-      const table = createTable();
-      scene.add(table);
-      
-      const foodItems = createFoodItems();
-      scene.add(foodItems);
-
-      // Update pool arrangement for better spacing
-      function arrangePools(pools) {
-        // Clear existing pots
-        while (potsGroup.children.length > 0) {
-          potsGroup.remove(potsGroup.children[0]);
-        }
-
-        // Arrange the pools in a wider spiral
-        pools.forEach((pool, i) => {
-          const angle = i * 0.4; // Increased angle spacing
-          const radius = 35 + i * 0.3; // Increased base radius and spacing
-          const x = radius * Math.cos(angle);
-          const z = radius * Math.sin(angle);
-          const pot = createFonduePot(pool.tvl);
-          pot.position.set(x, 0, z);
-          pot.rotation.y = Math.random() * Math.PI * 2;
-          potsGroup.add(pot);
-
-          // Update price display
-          priceDisplay.textContent = `TVL: ${pool.tvl.toFixed(2)} SOL`;
-        });
-      }
-
-      // Update camera position for better view
-      camera.position.set(0, 80, 120);
-      camera.lookAt(0, 0, 0);
-
-      // Add spot lights for better food illumination
-      const spotLight1 = new THREE.SpotLight(0xffffff, 1);
-      spotLight1.position.set(50, 100, 50);
-      spotLight1.angle = Math.PI / 4;
-      spotLight1.penumbra = 0.1;
-      spotLight1.decay = 2;
-      spotLight1.distance = 200;
-      spotLight1.castShadow = true;
-      scene.add(spotLight1);
-
-      const spotLight2 = new THREE.SpotLight(0xffd700, 0.8);
-      spotLight2.position.set(-50, 80, -50);
-      spotLight2.angle = Math.PI / 4;
-      spotLight2.penumbra = 0.1;
-      spotLight2.decay = 2;
-      spotLight2.distance = 200;
-      spotLight2.castShadow = true;
-      scene.add(spotLight2);
-
-      // -------------------------------
-      // Main Async Initialization
-      // -------------------------------
-      async function init() {
-        try {
-          const pools = await fetchLiquidityPools();
-          arrangePools(pools);
-        } catch (error) {
-          console.error('Error during initialization:', error);
-          // If something goes wrong, create a minimal set of pools
-          const fallbackPools = Array.from({ length: 10 }, (_, i) => ({
+        // Initialize with Meteora pools
+        const initializePools = () => {
+          return meteoraPools.map((pool, i) => ({
             id: i,
-            tvl: 50 // default TVL value
+            tvl: pool.tvl * (1 + Math.random() * 0.2 - 0.1) // Add some variation
           }));
-          arrangePools(fallbackPools);
-        }
-        // Always start the animation, regardless of data availability
-        animate();
-      }
+        };
 
-      // -------------------------------
-      // Animation Loop
-      // -------------------------------
-      function animate() {
-        requestAnimationFrame(animate);
+        // Transaction visualization
+        const visualizeTransaction = (transaction) => {
+          const txDiv = document.createElement('div');
+          txDiv.className = 'transaction';
+          txDiv.innerHTML = `
+            ${transaction.type.toUpperCase()}<br>
+            ${transaction.token1.symbol} ⟷ ${transaction.token2.symbol}<br>
+            Amount: ${transaction.amount}
+          `;
+          transactionInfo.insertBefore(txDiv, transactionInfo.firstChild);
+          if (transactionInfo.children.length > 5) {
+            transactionInfo.removeChild(transactionInfo.lastChild);
+          }
 
-        const time = Date.now() * 0.001;
-        
-        // Randomly generate new transactions
-        if (Math.random() < 0.02) { // 2% chance each frame
-          const transaction = generateMockTransaction();
-          const effect = visualizeTransaction(transaction);
-          if (effect) activeEffects.push(effect);
-        }
+          // Create particle effect for transaction
+          const children = potsGroup.getChildren();
+          if (!children || children.length === 0) return;
+          
+          const pot = children[transaction.poolIndex % children.length];
+          if (pot) {
+            const particleSystem = new BABYLON.ParticleSystem("txEffect", 100, scene);
+            particleSystem.particleTexture = new BABYLON.Texture(
+              "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/circle.png", scene);
+            particleSystem.emitter = pot;
+            particleSystem.color1 = transaction.type === 'addLiquidity' ? 
+              new BABYLON.Color4(0, 1, 0, 1) : new BABYLON.Color4(1, 0, 0, 1);
+            particleSystem.color2 = transaction.type === 'addLiquidity' ?
+              new BABYLON.Color4(0, 0.5, 0, 1) : new BABYLON.Color4(0.5, 0, 0, 1);
+            particleSystem.minSize = 0.1;
+            particleSystem.maxSize = 0.3;
+            particleSystem.minLifeTime = 0.5;
+            particleSystem.maxLifeTime = 1.0;
+            particleSystem.emitRate = 100;
+            particleSystem.gravity = new BABYLON.Vector3(0, 5, 0);
+            particleSystem.start();
 
-        // Animate active effects
-        activeEffects.forEach((effect, index) => {
-          effect.children.forEach(particle => {
-            if (particle.userData.velocity) {
-              particle.position.add(particle.userData.velocity);
-              particle.userData.velocity.y -= 0.1; // Gravity
-              particle.material.opacity *= 0.98; // Fade out
+            setTimeout(() => {
+              particleSystem.stop();
+              setTimeout(() => particleSystem.dispose(), 2000);
+            }, 1000);
+
+            if (transaction.type !== 'swap') {
+              const scale = transaction.type === 'addLiquidity' ? 1.1 : 0.9;
+              pot.scaling.scaleInPlace(scale);
             }
-          });
-          if (effect.children[0].material.opacity < 0.1) {
-            scene.remove(effect);
-            activeEffects.splice(index, 1);
           }
-        });
-        
-        // Gentle pot rotation
-        potsGroup.rotation.y = Math.sin(time * 0.1) * 0.1;
-        
-        // Subtle camera movement
-        camera.position.x = Math.sin(time * 0.05) * 100;
-        camera.position.z = Math.cos(time * 0.05) * 100;
-        camera.position.y = 80 + Math.sin(time * 0.1) * 5;
-        camera.lookAt(0, 0, 0);
+        };
 
-        // Animate snow falling
-        const positions = snow.geometry.attributes.position.array;
-        for (let i = 0; i < positions.length; i += 3) {
-          positions[i + 1] -= 0.1; // Snow falling speed
-          if (positions[i + 1] < -10) {
-            positions[i + 1] = 200; // Reset to top when reaching ground
-          }
-          // Add slight drift to snow
-          positions[i] += Math.sin(time + positions[i]) * 0.01;
-          positions[i + 2] += Math.cos(time + positions[i + 2]) * 0.01;
-        }
-        snow.geometry.attributes.position.needsUpdate = true;
+        // Initialize with Meteora pools instead of random mock data
+        const pools = initializePools();
+        arrangePots(pools);
 
-        // Animate pots and bubbles
-        potsGroup.children.forEach((pot, index) => {
-          const phase = time + index * 0.2;
-          pot.position.y = Math.sin(phase * 0.5) * 0.2;
-          
-          if (pot.userData.bubbles) {
-            pot.userData.bubbles.children.forEach(bubble => {
-              bubble.position.y = bubble.userData.originalY + 
-                Math.sin(time * bubble.userData.floatSpeed * 5) * pot.userData.scaleFactor * 0.3;
-              bubble.rotation.x = time * bubble.userData.floatSpeed;
-              bubble.rotation.z = time * bubble.userData.floatSpeed * 0.5;
-            });
+        // Add random transactions
+        scene.onBeforeRenderObservable.add(() => {
+          if (Math.random() < 0.02) {
+            const transaction = generateMockTransaction();
+            visualizeTransaction(transaction);
           }
         });
 
-        // Enhance star twinkling
-        if (stars) {
-          const positions = stars.geometry.attributes.position.array;
-          const colors = stars.geometry.attributes.color.array;
-          
-          for (let i = 0; i < positions.length; i += 3) {
-            const phase = time + positions[i] * 0.0005;
-            colors[i + 1] = Math.sin(phase) * 0.2 + 0.8;
-          }
-          stars.geometry.attributes.color.needsUpdate = true;
-          stars.rotation.y = time * 0.02; // Slower star rotation
-        }
+        // Enhanced Post-processing
+        const pipeline = new BABYLON.DefaultRenderingPipeline(
+          "defaultPipeline", true, scene, [camera]);
+        
+        // Bloom
+        pipeline.bloomEnabled = true;
+        pipeline.bloomThreshold = 0.6;
+        pipeline.bloomWeight = 0.5;
+        pipeline.bloomKernel = 64;
+        pipeline.bloomScale = 0.5;
 
-        composer.render();
-      }
-      init();
+        // SSAO for depth
+        pipeline.ssaoEnabled = true;
+        pipeline.ssaoRatio = 0.5;
+        pipeline.ssaoBlurScale = 1;
+        pipeline.ssaoArea = 1;
+        pipeline.ssaoBaseColor = new BABYLON.Color3(0.0, 0.0, 0.0);
 
-      // -------------------------------
-      // Handle Window Resize
-      // -------------------------------
-      window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        composer.setSize(window.innerWidth, window.innerHeight);
+        // Color grading
+        pipeline.imageProcessing.colorGradingEnabled = true;
+        pipeline.imageProcessing.colorGradingWithGreenDepth = false;
+        pipeline.imageProcessing.contrast = 1.1;
+        pipeline.imageProcessing.exposure = 1.0;
+        pipeline.imageProcessing.toneMappingEnabled = true;
+
+        // Chromatic aberration
+        pipeline.chromaticAberrationEnabled = true;
+        pipeline.chromaticAberration.aberrationAmount = 1;
+        pipeline.chromaticAberration.radialIntensity = 0.5;
+
+        // Grain
+        pipeline.grainEnabled = true;
+        pipeline.grain.intensity = 5;
+        pipeline.grain.animated = true;
+
+        // Sharpen
+        pipeline.sharpenEnabled = true;
+        pipeline.sharpen.edgeAmount = 0.3;
+        pipeline.sharpen.colorAmount = 1;
+
+        return scene;
+      };
+
+      createScene().then(scene => {
+        engine.runRenderLoop(() => scene.render());
+      });
+
+      window.addEventListener("resize", () => {
+        engine.resize();
       });
     </script>
   </body>
