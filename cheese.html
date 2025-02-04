@@ -52,12 +52,56 @@
         background: rgba(255, 255, 255, 0.1);
         border-radius: 5px;
       }
+      #walletButton {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #ffd700;
+        padding: 10px 20px;
+        border-radius: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 16px;
+        border: 1px solid #ffd700;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        z-index: 100;
+      }
+      #walletButton:hover {
+        background: rgba(255, 215, 0, 0.2);
+      }
+      #walletInfo {
+        position: fixed;
+        top: 70px;
+        left: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        padding: 15px;
+        border-radius: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        max-width: 300px;
+        border: 1px solid #ffd700;
+        display: none;
+        z-index: 100;
+      }
+      .wallet-balance {
+        color: #ffd700;
+        font-weight: bold;
+        margin-top: 5px;
+      }
     </style>
   </head>
   <body>
     <canvas id="renderCanvas"></canvas>
     <div id="priceDisplay"></div>
     <div id="transactionInfo"></div>
+    <button id="walletButton">Connect Wallet</button>
+    <div id="walletInfo">
+      <div>Wallet Address: <span id="walletAddress"></span></div>
+      <div class="wallet-balance">🧀 Balance: <span id="cheeseBalance">0</span></div>
+      <div class="wallet-balance">SOL Balance: <span id="solBalance">0</span></div>
+    </div>
 
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
@@ -66,23 +110,31 @@
     <script src="https://cdn.babylonjs.com/proceduralTexturesLibrary/babylonjs.proceduralTextures.min.js"></script>
     <script src="https://cdn.babylonjs.com/postProcessesLibrary/babylonjs.postProcess.min.js"></script>
 
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@solana/wallet-adapter-base@latest/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@solana/wallet-adapter-phantom@latest/lib/index.iife.min.js"></script>
+
     <script>
       const tokens = [
         { 
           symbol: '🧀', 
-          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump/logo.png'
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump/logo.png',
+          address: 'A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump'
         },
         { 
           symbol: 'SOL', 
-          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png' 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png',
+          address: 'So11111111111111111111111111111111111111112'
         },
         { 
           symbol: 'USDC', 
-          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png' 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png',
+          address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
         },
         { 
           symbol: 'BONK', 
-          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/logo.png' 
+          logo: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263/logo.png',
+          address: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263'
         }
       ];
 
@@ -98,8 +150,65 @@
       const priceDisplay = document.getElementById("priceDisplay");
       const transactionInfo = document.getElementById("transactionInfo");
 
+      // Declare shared variables at the top level
+      let scene = null;
+      let potsGroup = null;
+
+      // Add wallet connection logic
+      let wallet = null;
+      let connection = null;
+      const CHEESE_TOKEN_ADDRESS = 'A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump';
+
+      // Function to fetch real pool data
+      async function initializePools() {
+        try {
+          // If we have a connection, try to get real data
+          if (connection) {
+            // Fetch Meteora pools
+            const response = await fetch('https://api.meteora.ag/v1/pools');
+            const data = await response.json();
+            
+            // Filter for cheese pools
+            const pools = data.pools
+              .filter(pool => 
+                pool.tokens.some(token => 
+                  token.mint === CHEESE_TOKEN_ADDRESS
+                )
+              )
+              .map(pool => {
+                const cheeseToken = pool.tokens.find(token => 
+                  token.mint === CHEESE_TOKEN_ADDRESS
+                );
+                return {
+                  id: pool.address,
+                  tvl: parseFloat(pool.tvl),
+                  price: parseFloat(cheeseToken.price),
+                  weight: parseFloat(pool.volume24h) / 1000000, // Normalize weight based on volume
+                  pair: `🧀-${pool.name.replace('CHEESE-', '')}`,
+                  source: 'Meteora'
+                };
+              });
+
+            return pools;
+          }
+        } catch (error) {
+          console.warn('Error fetching real pool data:', error);
+        }
+
+        // Fallback to mock data if real data fetch fails
+        return meteoraPools.map((pool, i) => ({
+          id: i,
+          tvl: pool.tvl,
+          price: 9.0,
+          weight: pool.weight,
+          pair: pool.pair,
+          source: 'Meteora'
+        }));
+      }
+
       const createScene = async function() {
-        const scene = new BABYLON.Scene(engine);
+        // Create the scene
+        scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0.05, 0.1, 0.2, 1.0);
 
         // Camera setup
@@ -223,7 +332,7 @@
         scene.fogDensity = 0.001;
 
         // Create fondue pots group
-        const potsGroup = new BABYLON.TransformNode("potsGroup");
+        potsGroup = new BABYLON.TransformNode("potsGroup");
 
         // Create central price display
         const createPriceDisplay = () => {
@@ -233,70 +342,71 @@
             // Create a stack panel for vertical arrangement
             const stackPanel = new BABYLON.GUI.StackPanel();
             stackPanel.isVertical = true;
+            stackPanel.paddingTop = "10px";
             guiManager.addControl(stackPanel);
+
+            // Create glowing circle background first (so it's behind text)
+            const circle = new BABYLON.GUI.Ellipse();
+            circle.width = "400px";
+            circle.height = "400px";
+            circle.color = "#FFD700";
+            circle.thickness = 2;
+            circle.background = "rgba(0, 0, 0, 0.8)"; // More opaque background
+            circle.alpha = 0.9; // More visible
+            guiManager.addControl(circle);
+
+            // Add outer glow circle
+            const outerCircle = new BABYLON.GUI.Ellipse();
+            outerCircle.width = "420px";
+            outerCircle.height = "420px";
+            outerCircle.color = "#FFD700";
+            outerCircle.thickness = 1;
+            outerCircle.background = "transparent";
+            outerCircle.alpha = 0.5; // Stronger glow
+            guiManager.addControl(outerCircle);
 
             // Create text block for "CHEESE"
             const titleText = new BABYLON.GUI.TextBlock();
             titleText.text = "🧀 CHEESE 🧀";
             titleText.color = "#FFD700";
-            titleText.fontSize = 40;
+            titleText.fontSize = 48; // Larger font
             titleText.fontFamily = "Arial";
-            titleText.shadowBlur = 10;
+            titleText.shadowBlur = 15; // More blur for better glow
             titleText.shadowColor = "#FFD700";
-            titleText.shadowOffsetX = 2;
-            titleText.shadowOffsetY = 2;
+            titleText.shadowOffsetX = 0;
+            titleText.shadowOffsetY = 0;
             titleText.height = "80px";
             stackPanel.addControl(titleText);
 
             // Add contract address
             const addressText = new BABYLON.GUI.TextBlock();
             addressText.text = "A3hzGcTxZNSc7744CWB2LR5Tt9VTtEaQYpP6nwripump";
-            addressText.color = "#AAAAAA";
-            addressText.fontSize = 14;
+            addressText.color = "#CCCCCC"; // Lighter color for better visibility
+            addressText.fontSize = 16; // Slightly larger
             addressText.fontFamily = "monospace";
-            addressText.height = "30px";
+            addressText.height = "40px";
             stackPanel.addControl(addressText);
 
             // Create text block for price
             const priceText = new BABYLON.GUI.TextBlock();
             priceText.text = "$0.00";
             priceText.color = "#FFFFFF";
-            priceText.fontSize = 60;
+            priceText.fontSize = 72; // Larger price
             priceText.fontFamily = "Arial";
-            priceText.shadowBlur = 15;
+            priceText.shadowBlur = 20; // More blur for better glow
             priceText.shadowColor = "#FFD700";
-            priceText.shadowOffsetX = 3;
-            priceText.shadowOffsetY = 3;
-            priceText.height = "100px";
+            priceText.shadowOffsetX = 0;
+            priceText.shadowOffsetY = 0;
+            priceText.height = "120px";
             stackPanel.addControl(priceText);
-
-            // Create glowing circle background
-            const circle = new BABYLON.GUI.Ellipse();
-            circle.width = "400px"; // Increased size to accommodate address
-            circle.height = "400px";
-            circle.color = "#FFD700";
-            circle.thickness = 2;
-            circle.background = "rgba(0, 0, 0, 0.5)";
-            circle.alpha = 0.7;
-            guiManager.addControl(circle);
-
-            // Add outer glow circle
-            const outerCircle = new BABYLON.GUI.Ellipse();
-            outerCircle.width = "420px"; // Increased size to match inner circle
-            outerCircle.height = "420px";
-            outerCircle.color = "#FFD700";
-            outerCircle.thickness = 1;
-            outerCircle.background = "transparent";
-            outerCircle.alpha = 0.3;
-            guiManager.addControl(outerCircle);
 
             // Add price change indicator
             const changeIndicator = new BABYLON.GUI.TextBlock();
             changeIndicator.text = "";
             changeIndicator.color = "#00FF00";
-            changeIndicator.fontSize = 24;
+            changeIndicator.fontSize = 32; // Larger indicator
             changeIndicator.fontFamily = "Arial";
-            changeIndicator.height = "40px";
+            changeIndicator.height = "50px";
             stackPanel.addControl(changeIndicator);
 
             // Add click handler to copy address
@@ -316,7 +426,7 @@
                 addressText.color = "#FFFFFF";
             });
             addressText.onPointerOutObservable.add(() => {
-                addressText.color = "#AAAAAA";
+                addressText.color = "#CCCCCC";
             });
 
             let currentPrice = 9.00; // Starting price
@@ -349,7 +459,7 @@
                     // Flash effect on price change
                     circle.alpha = 1;
                     setTimeout(() => {
-                        circle.alpha = 0.7;
+                        circle.alpha = 0.9;
                     }, 200);
                 }
             });
@@ -360,19 +470,26 @@
         const priceDisplay = createPriceDisplay();
 
         // Function to create a fondue pot
-        const createFonduePot = (tvl) => {
+        const createFonduePot = (pool) => {
           const potGroup = new BABYLON.TransformNode("potGroup");
           potGroup.parent = potsGroup;
 
-          const scaleFactor = BABYLON.Scalar.Clamp(tvl / 50, 0.5, 3);
+          // Scale based on TVL and adjust color based on price
+          const scaleFactor = BABYLON.Scalar.Clamp(pool.tvl / 50000, 0.5, 3);
+          const priceColor = new BABYLON.Color3(
+            1.0, // Red component
+            0.84 * (pool.price > 1 ? 1 : pool.price), // Green component affected by price
+            0 // Blue component
+          );
 
-          // Create pot body
+          // Create pot body with source indicator
           const body = BABYLON.MeshBuilder.CreateCylinder("body", {
             height: scaleFactor * 1.5,
             diameterTop: scaleFactor * 2,
             diameterBottom: scaleFactor * 1.6,
             tessellation: 32
           });
+          const bodyMaterial = metalMaterial.clone("potMetal");
           body.material = metalMaterial.clone("potMetal");
           body.parent = potGroup;
 
@@ -428,7 +545,7 @@
           pools.forEach((pool, i) => {
             const angle = i * 0.4;
             const radius = 35 + i * 0.3;
-            const pot = createFonduePot(pool.tvl);
+            const pot = createFonduePot(pool);
             pot.position = new BABYLON.Vector3(
               radius * Math.cos(angle),
               0,
@@ -457,69 +574,13 @@
           };
         };
 
-        // Initialize with Meteora pools
-        const initializePools = () => {
-          return meteoraPools.map((pool, i) => ({
-            id: i,
-            tvl: pool.tvl * (1 + Math.random() * 0.2 - 0.1) // Add some variation
-          }));
-        };
+        // Initialize with pools
+        const initialPools = await initializePools();
+        arrangePots(initialPools);
 
-        // Transaction visualization
-        const visualizeTransaction = (transaction) => {
-          const txDiv = document.createElement('div');
-          txDiv.className = 'transaction';
-          txDiv.innerHTML = `
-            ${transaction.type.toUpperCase()}<br>
-            ${transaction.token1.symbol} ⟷ ${transaction.token2.symbol}<br>
-            Amount: ${transaction.amount}
-          `;
-          transactionInfo.insertBefore(txDiv, transactionInfo.firstChild);
-          if (transactionInfo.children.length > 5) {
-            transactionInfo.removeChild(transactionInfo.lastChild);
-          }
-
-          // Create particle effect for transaction
-          const children = potsGroup.getChildren();
-          if (!children || children.length === 0) return;
-          
-          const pot = children[transaction.poolIndex % children.length];
-          if (pot) {
-            const particleSystem = new BABYLON.ParticleSystem("txEffect", 100, scene);
-            particleSystem.particleTexture = new BABYLON.Texture(
-              "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/circle.png", scene);
-            particleSystem.emitter = pot;
-            particleSystem.color1 = transaction.type === 'addLiquidity' ? 
-              new BABYLON.Color4(0, 1, 0, 1) : new BABYLON.Color4(1, 0, 0, 1);
-            particleSystem.color2 = transaction.type === 'addLiquidity' ?
-              new BABYLON.Color4(0, 0.5, 0, 1) : new BABYLON.Color4(0.5, 0, 0, 1);
-            particleSystem.minSize = 0.1;
-            particleSystem.maxSize = 0.3;
-            particleSystem.minLifeTime = 0.5;
-            particleSystem.maxLifeTime = 1.0;
-            particleSystem.emitRate = 100;
-            particleSystem.gravity = new BABYLON.Vector3(0, 5, 0);
-            particleSystem.start();
-
-            setTimeout(() => {
-              particleSystem.stop();
-              setTimeout(() => particleSystem.dispose(), 2000);
-            }, 1000);
-
-            if (transaction.type !== 'swap') {
-              const scale = transaction.type === 'addLiquidity' ? 1.1 : 0.9;
-              pot.scaling.scaleInPlace(scale);
-            }
-          }
-        };
-
-        // Initialize with Meteora pools instead of random mock data
-        const pools = initializePools();
-        arrangePots(pools);
-
-        // Add random transactions
+        // Add random transactions with a check for potsGroup
         scene.onBeforeRenderObservable.add(() => {
-          if (Math.random() < 0.02) {
+          if (Math.random() < 0.02 && potsGroup && potsGroup.getChildren().length > 0) {
             const transaction = generateMockTransaction();
             visualizeTransaction(transaction);
           }
@@ -568,12 +629,177 @@
         return scene;
       };
 
-      createScene().then(scene => {
-        engine.runRenderLoop(() => scene.render());
+      // Transaction visualization function with null checks
+      const visualizeTransaction = (transaction) => {
+        if (!transaction || !potsGroup) return;
+
+        // Update transaction info display
+        const txDiv = document.createElement('div');
+        txDiv.className = 'transaction';
+        txDiv.innerHTML = `
+            <span style="color: ${transaction.source === 'Meteora' ? '#ff00ff' : '#00ffff'}">
+                [${transaction.source || 'DEX'}]
+            </span><br>
+            ${transaction.type.toUpperCase()}<br>
+            ${transaction.token1.symbol} ⟷ ${transaction.token2.symbol}<br>
+            Amount: ${transaction.amount}
+        `;
+        transactionInfo.insertBefore(txDiv, transactionInfo.firstChild);
+        if (transactionInfo.children.length > 5) {
+            transactionInfo.removeChild(transactionInfo.lastChild);
+        }
+
+        // Create particle effect for transaction
+        const children = potsGroup.getChildren();
+        if (!children || children.length === 0) return;
+        
+        const pot = children[transaction.poolIndex % children.length];
+        if (pot) {
+            const particleSystem = new BABYLON.ParticleSystem("txEffect", 100, scene);
+            particleSystem.particleTexture = new BABYLON.Texture(
+                "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/sprites/circle.png", scene);
+            particleSystem.emitter = pot;
+            particleSystem.color1 = transaction.type === 'addLiquidity' ? 
+                new BABYLON.Color4(0, 1, 0, 1) : new BABYLON.Color4(1, 0, 0, 1);
+            particleSystem.color2 = transaction.type === 'addLiquidity' ?
+                new BABYLON.Color4(0, 0.5, 0, 1) : new BABYLON.Color4(0.5, 0, 0, 1);
+            particleSystem.minSize = 0.1;
+            particleSystem.maxSize = 0.3;
+            particleSystem.minLifeTime = 0.5;
+            particleSystem.maxLifeTime = 1.0;
+            particleSystem.emitRate = 100;
+            particleSystem.gravity = new BABYLON.Vector3(0, 5, 0);
+            particleSystem.start();
+
+            setTimeout(() => {
+                particleSystem.stop();
+                setTimeout(() => particleSystem.dispose(), 2000);
+            }, 1000);
+
+            if (transaction.type !== 'swap') {
+                const scale = transaction.type === 'addLiquidity' ? 1.1 : 0.9;
+                pot.scaling.scaleInPlace(scale);
+            }
+        }
+    };
+
+      // Initialize everything with proper error handling
+      window.addEventListener('DOMContentLoaded', async () => {
+        try {
+          const newScene = await createScene();
+          if (!newScene || !potsGroup) {
+            throw new Error('Failed to initialize scene or pots group');
+          }
+          
+          // Start the render loop
+          engine.runRenderLoop(() => {
+            if (newScene) {
+              newScene.render();
+            }
+          });
+
+          // Start periodic updates
+          setInterval(async () => {
+            try {
+              const updatedPools = await initializePools();
+              if (updatedPools && updatedPools.length > 0) {
+                arrangePots(updatedPools);
+              }
+            } catch (error) {
+              console.warn('Error updating pools:', error);
+            }
+          }, 60000); // Update every minute
+
+        } catch (error) {
+          console.error('Error initializing scene:', error);
+        }
       });
 
+      // Handle window resizing
       window.addEventListener("resize", () => {
-        engine.resize();
+        if (engine) {
+          engine.resize();
+        }
+      });
+
+      // Add wallet connection logic
+      async function connectWallet() {
+        try {
+          if (!window.solana || !window.solana.isPhantom) {
+            alert('Please install Phantom wallet!');
+            window.open('https://phantom.app/', '_blank');
+            return;
+          }
+
+          const resp = await window.solana.connect();
+          wallet = resp.publicKey;
+          connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('mainnet-beta'));
+          
+          // Update UI
+          document.getElementById('walletButton').textContent = 'Disconnect';
+          document.getElementById('walletAddress').textContent = 
+            `${wallet.toString().slice(0, 4)}...${wallet.toString().slice(-4)}`;
+          document.getElementById('walletInfo').style.display = 'block';
+
+          // Start balance updates
+          updateBalances();
+          setInterval(updateBalances, 10000); // Update every 10 seconds
+
+        } catch (err) {
+          console.error('Error connecting wallet:', err);
+          alert('Failed to connect wallet: ' + err.message);
+        }
+      }
+
+      async function disconnectWallet() {
+        if (window.solana) {
+          await window.solana.disconnect();
+          wallet = null;
+          connection = null;
+          
+          // Update UI
+          document.getElementById('walletButton').textContent = 'Connect Wallet';
+          document.getElementById('walletInfo').style.display = 'none';
+          document.getElementById('cheeseBalance').textContent = '0';
+          document.getElementById('solBalance').textContent = '0';
+        }
+      }
+
+      async function updateBalances() {
+        if (!wallet || !connection) return;
+
+        try {
+          // Get SOL balance
+          const solBalance = await connection.getBalance(wallet);
+          document.getElementById('solBalance').textContent = 
+            (solBalance / solanaWeb3.LAMPORTS_PER_SOL).toFixed(4);
+
+          // Get Cheese token balance
+          const tokenAccounts = await connection.getParsedTokenAccountsByOwner(wallet, {
+            programId: new solanaWeb3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA')
+          });
+
+          const cheeseAccount = tokenAccounts.value.find(account => 
+            account.account.data.parsed.info.mint === CHEESE_TOKEN_ADDRESS
+          );
+
+          if (cheeseAccount) {
+            const cheeseBalance = cheeseAccount.account.data.parsed.info.tokenAmount.uiAmount;
+            document.getElementById('cheeseBalance').textContent = cheeseBalance.toFixed(4);
+          }
+
+        } catch (err) {
+          console.error('Error updating balances:', err);
+        }
+      }
+
+      // Add click handler for wallet button
+      document.getElementById('walletButton').addEventListener('click', async () => {
+        if (!wallet) {
+          await connectWallet();
+        } else {
+          await disconnectWallet();
+        }
       });
     </script>
   </body>
